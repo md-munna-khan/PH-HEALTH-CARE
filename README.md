@@ -69,3 +69,326 @@ export const UserController = {
     createPatient
 }
 ```
+
+## 57-1 Creating Patient (User) – Part 2
+- user.routes.ts 
+
+```ts 
+import express from 'express';
+import { UserRoutes } from '../modules/user/user.routes';
+
+
+const router = express.Router();
+
+const moduleRoutes = [
+    {
+        path: '/user',
+        route: UserRoutes
+    }
+];
+
+moduleRoutes.forEach(route => router.use(route.path, route.route))
+
+export default router;
+```
+- user.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+
+const createPatient = catchAsync(async (req: Request, res: Response) => {
+    console.log("Patient Created! ", req.body)
+    const result = await UserService.createPatient(req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Patient Created Successfully",
+        data: result
+    })
+})
+
+
+export const UserController = {
+    createPatient
+}
+```
+- user.interface.ts 
+
+```ts 
+export type createPatientInput = {
+    name : string,
+    email : string
+    password : string
+}
+```
+- user.service.ts 
+
+```ts 
+import bcrypt from "bcryptjs";
+import { createPatientInput } from "./user.interface";
+import { prisma } from "../../shared/prisma";
+
+const createPatient = async (payload: createPatientInput) => {
+    const hashedPassword = await bcrypt.hash(payload.password, 10)
+
+    const result = await prisma.$transaction(async (tnx) => {
+        await tnx.user.create({
+            data: {
+                email: payload.email,
+                password: hashedPassword
+            }
+        })
+
+        return await tnx.patient.create({
+            data: {
+                name: payload.name,
+                email: payload.email
+            }
+        })
+    })
+
+    return result
+}
+
+export const UserService = {
+    createPatient
+}
+```
+# 57-3 Building File Upload Helper with Multer
+
+- For Image Uploading we will use third party package named `cloudinary` with `multer`
+- Install Multer
+
+```
+npm i multer
+```
+
+- install types for multer
+
+```
+npm i --save-dev @types/multer
+```
+
+- dummy multer functionality
+- app -> helper -> fileUploader.ts
+
+```ts
+import multer from "multer";
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "/tmp/my-uploads");
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix);
+  },
+});
+
+const upload = multer({ storage: storage });
+```
+- Now Lets Fix this and optimize for our system. 
+
+![alt text](image-5.png)
+
+app -> helper -> fileUploader.ts
+
+```ts
+import multer from 'multer'
+import path from 'path'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+```
+- Now Install Cloudinary
+
+```
+npm install cloudinary
+```
+- app -> helper -> fileUploader.ts
+
+```ts 
+import multer from 'multer'
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //
+// D:\NEXT-LEVEL-2\FullStack-fusionist\ph-health-care-server
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary =  async (file : Express.Multer.File) =>{
+    
+}
+```
+![alt text](image-5.png)
+
+## 57-4 Implementing Request Validation Middleware & Patient Creation with Zod Schema
+![alt text](image-6.png)
+- Lets make the mechanism for taking the image to the working directory 
+
+![alt text](image-7.png)
+
+- we have to parse the data then we have to work with it 
+- For this we need to add a zod validation 
+- install zod 
+
+```
+npm install zod
+```
+- middleware concept 
+
+![alt text](image-8.png)
+
+- user.validation.ts 
+
+```ts 
+import z from "zod";
+
+const createPatientValidationSchema = z.object({
+    password: z.string(),
+    patient: {
+        name: z.string({
+            error: "Name is Required"
+        }),
+        email: z.string({
+            error: "Email Is Required"
+        }),
+        address: z.string().optional()
+    }
+})
+
+export const UserValidation = {
+    createPatientValidationSchema
+}
+```
+- lets make the middleware first for checking for all then passing to next 
+
+```ts
+import { NextFunction, Request, Response } from "express";
+import { ZodObject } from "zod";
+
+const validateRequest = (schema: ZodObject) => async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        await schema.parseAsync({
+            body: req.body
+        })
+        return next() // this will pass to the next middleware or lastly will go to the controller if no more middleware 
+    } catch (error) {
+        next(error)
+    }
+}
+
+export default validateRequest
+```
+
+
+## 57-5 Handling Image Upload using Multer
+
+![alt text](image-9.png)
+
+- app-> helper -> fileUploader.ts 
+
+```ts 
+
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+import multer from 'multer'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary = async (file: Express.Multer.File) => {
+
+}
+
+export const fileUploader = {
+    upload
+}
+```
+- user.routes.ts 
+
+```ts 
+import express, { NextFunction, Request, Response } from 'express'
+import { UserController } from './user.controller'
+import { fileUploader } from '../../helper/fileUploader'
+import { UserValidation } from './user.validation'
+
+const router = express.Router()
+
+router.post("/create-patient",
+    fileUploader.upload.single('file'),
+    (req: Request, res: Response, next: NextFunction) => {
+        req.body = UserValidation.createPatientValidationSchema.parse(JSON.parse(req.body.data))
+        return UserController.createPatient(req, res, next)
+    },
+
+)
+
+export const UserRoutes = router 
+```
+
+- user.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+
+const createPatient = catchAsync(async (req: Request, res: Response) => {
+    console.log("Patient Created! ", req.body)
+    const result = await UserService.createPatient(req.body)
+
+    console.log(req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Patient Created Successfully",
+        data: result
+    })
+})
+
+
+export const UserController = {
+    createPatient
+}
+```
