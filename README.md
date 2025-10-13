@@ -158,3 +158,92 @@ export const UserService = {
     createPatient
 }
 ```
+# 57-3 Building File Upload Helper with Multer
+
+- For Image Uploading we will use third party package named `cloudinary` with `multer`
+- Install Multer
+
+```
+npm i multer
+```
+
+- install types for multer
+
+```
+npm i --save-dev @types/multer
+```
+
+- dummy multer functionality
+- app -> helper -> fileUploader.ts
+
+```ts
+import multer from "multer";
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "/tmp/my-uploads");
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix);
+  },
+});
+
+const upload = multer({ storage: storage });
+```
+- Now Lets Fix this and optimize for our system. 
+
+![alt text](image-5.png)
+
+app -> helper -> fileUploader.ts
+
+```ts
+import multer from 'multer'
+import path from 'path'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+```
+- Now Install Cloudinary
+
+```
+npm install cloudinary
+```
+- app -> helper -> fileUploader.ts
+
+```ts 
+import multer from 'multer'
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary =  async (file : Express.Multer.File) =>{
+    
+}
+```
+![alt text](image-5.png)
