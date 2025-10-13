@@ -306,3 +306,89 @@ const validateRequest = (schema: ZodObject) => async (req: Request, res: Respons
 
 export default validateRequest
 ```
+
+
+## 57-5 Handling Image Upload using Multer
+
+![alt text](image-9.png)
+
+- app-> helper -> fileUploader.ts 
+
+```ts 
+
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+import multer from 'multer'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary = async (file: Express.Multer.File) => {
+
+}
+
+export const fileUploader = {
+    upload
+}
+```
+- user.routes.ts 
+
+```ts 
+import express, { NextFunction, Request, Response } from 'express'
+import { UserController } from './user.controller'
+import { fileUploader } from '../../helper/fileUploader'
+import { UserValidation } from './user.validation'
+
+const router = express.Router()
+
+router.post("/create-patient",
+    fileUploader.upload.single('file'),
+    (req: Request, res: Response, next: NextFunction) => {
+        req.body = UserValidation.createPatientValidationSchema.parse(JSON.parse(req.body.data))
+        return UserController.createPatient(req, res, next)
+    },
+
+)
+
+export const UserRoutes = router 
+```
+
+- user.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+
+const createPatient = catchAsync(async (req: Request, res: Response) => {
+    console.log("Patient Created! ", req.body)
+    const result = await UserService.createPatient(req.body)
+
+    console.log(req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Patient Created Successfully",
+        data: result
+    })
+})
+
+
+export const UserController = {
+    createPatient
+}
+```
