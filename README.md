@@ -1,59 +1,71 @@
-# Be an Industry-Standard Fullstack Fusionist
+# Patient-Management-And-Authentication-Setup
 
-Starter Pack: https://github.com/Apollo-Level2-Web-Dev/ph-health-care-server/tree/main
+## 57-1 Creating Patient (User) – Part 1
+- app.ts 
+
+```ts 
+import express, { Application, NextFunction, Request, Response } from 'express';
+import cors from 'cors';
+import globalErrorHandler from './app/middlewares/globalErrorHandler';
+import notFound from './app/middlewares/notFound';
+import config from './config';
+
+import router from './app/routes';
+
+const app: Application = express();
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+}));
+
+//parser
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use("/api/v1", router)
 
 
+app.get('/', (req: Request, res: Response) => {
+    res.send({
+        message: "Server is running..",
+        environment: config.node_env,
+        uptime: process.uptime().toFixed(2) + " sec",
+        timeStamp: new Date().toISOString()
+    })
+});
 
-Part-1 : https://github.com/Apollo-Level2-Web-Dev/ph-health-care-server/tree/part-1
 
+app.use(globalErrorHandler);
 
-## Project Foundation and Database Setup
+app.use(notFound);
 
-## 56-1 Introduction to the “PH Health Care” Project
-![alt text](image.png)
-
-## 56-2 Requirement Analysis – Part 1
-![alt text](image-1.png)
-
-## 56-3 Requirement Analysis – Part 2
-![alt text](image-2.png)
-
-## 56-4 Requirement Analysis – Part 3
-![alt text](image-3.png)
-
-## 56-6 Setting up Prisma in the Starter Pack
- - install prisma
- ```
- npm add -D prisma
-
- ```
-- install prisma client
+export default app;
 ```
-npm install @prisma/client
+
+- src -> app -> modules -> user.routes.ts 
+
+```ts 
+import express from 'express'
+import { UserController } from './user.controller'
+
+const router = express.Router()
+
+router.post("/create-patient",UserController.createPatient )
+
+export const UserRoutes = router 
 ```
-- prisma init
-```
-npx prisma init
-```
-- schema.prisma
+- src -> app -> modules -> user.controller.ts 
+
 ```ts
-generator client {
-  provider = "prisma-client-js"
-}
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+const createPatient = catchAsync(async (req: Request, res: Response) => {
+    console.log("Patient Created! ", req.body)
+})
+
+
+export const UserController = {
+    createPatient
 }
 ```
-- set up Your env
-- add postgres database url
-```
-DATABASE_URL="postgresql://johndoe:randompassword@localhost:5432/mydb?schema=public"
-```
--migrate
-```
-npx prisma migrate dev
-```
-## 56-7 Designing the ERD (User, Patient, Doctor, Admin)
-![alt text](image-4.png)
