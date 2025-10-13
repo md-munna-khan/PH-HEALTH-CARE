@@ -230,8 +230,8 @@ import { v2 as cloudinary } from 'cloudinary'
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         // cb(null, '/tmp/my-uploads')
-        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
-
+        cb(null, path.join(process.cwd(), "/uploads")) //
+// D:\NEXT-LEVEL-2\FullStack-fusionist\ph-health-care-server
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -247,3 +247,62 @@ const uploadToCloudinary =  async (file : Express.Multer.File) =>{
 }
 ```
 ![alt text](image-5.png)
+
+## 57-4 Implementing Request Validation Middleware & Patient Creation with Zod Schema
+![alt text](image-6.png)
+- Lets make the mechanism for taking the image to the working directory 
+
+![alt text](image-7.png)
+
+- we have to parse the data then we have to work with it 
+- For this we need to add a zod validation 
+- install zod 
+
+```
+npm install zod
+```
+- middleware concept 
+
+![alt text](image-8.png)
+
+- user.validation.ts 
+
+```ts 
+import z from "zod";
+
+const createPatientValidationSchema = z.object({
+    password: z.string(),
+    patient: {
+        name: z.string({
+            error: "Name is Required"
+        }),
+        email: z.string({
+            error: "Email Is Required"
+        }),
+        address: z.string().optional()
+    }
+})
+
+export const UserValidation = {
+    createPatientValidationSchema
+}
+```
+- lets make the middleware first for checking for all then passing to next 
+
+```ts
+import { NextFunction, Request, Response } from "express";
+import { ZodObject } from "zod";
+
+const validateRequest = (schema: ZodObject) => async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        await schema.parseAsync({
+            body: req.body
+        })
+        return next() // this will pass to the next middleware or lastly will go to the controller if no more middleware 
+    } catch (error) {
+        next(error)
+    }
+}
+
+export default validateRequest
+```
