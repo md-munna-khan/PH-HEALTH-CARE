@@ -392,3 +392,227 @@ export const UserController = {
     createPatient
 }
 ```
+
+## 57-6 Parsing Data & Preparing Image for Cloudinary Upload
+- update in user.validation.ts 
+
+```ts 
+import z from "zod";
+
+const createPatientValidationSchema = z.object({
+    password: z.string(),
+    patient: z.object(
+        {
+            name: z.string().nonempty("Name is Required"),
+            email: z.string().nonempty("Email Is Required"),
+            address: z.string().optional()
+        }
+    )
+})
+
+export const UserValidation = {
+    createPatientValidationSchema
+}
+```
+- user.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+
+const createPatient = catchAsync(async (req: Request, res: Response) => {
+    // console.log("Patient Created! ", req.body)
+    const result = await UserService.createPatient(req)
+
+    // console.log(req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Patient Created Successfully",
+        data: result
+    })
+})
+
+
+export const UserController = {
+    createPatient
+}
+```
+- user.service.ts 
+
+```ts 
+import bcrypt from "bcryptjs";
+import { createPatientInput } from "./user.interface";
+import { prisma } from "../../shared/prisma";
+import { Request } from "express";
+import { fileUploader } from "../../helper/fileUploader";
+
+const createPatient = async (req: Request) => {
+
+    if (req.file) {
+        const uploadResult = await fileUploader.uploadToCloudinary(req.file)
+        console.log(uploadResult)
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body.password, 10)
+
+    const result = await prisma.$transaction(async (tnx) => {
+        await tnx.user.create({
+            data: {
+                email: req.body.email,
+                password: hashedPassword
+            }
+        })
+
+        return await tnx.patient.create({
+            data: {
+                name: req.body.name,
+                email: req.body.email
+            }
+        })
+    })
+
+    return result
+}
+
+export const UserService = {
+    createPatient
+}
+```
+- fileUploader.ts 
+
+```ts 
+
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+import multer from 'multer'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary = async (file: Express.Multer.File) => {
+    console.log("file", file)
+}
+
+export const fileUploader = {
+    upload,
+    uploadToCloudinary
+}
+```
+
+
+## 57-7 Uploading Image to Cloudinary
+- fileUploader.ts 
+
+```ts 
+
+import path from 'path'
+import { v2 as cloudinary } from 'cloudinary'
+import multer from 'multer'
+import config from '../../config'
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // cb(null, '/tmp/my-uploads')
+        cb(null, path.join(process.cwd(), "/uploads")) //C:\Users\Sazid\my-project\uploads
+
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+// for cloudinary 
+const uploadToCloudinary = async (file: Express.Multer.File) => {
+    console.log("file", file)
+
+    cloudinary.config({
+        cloud_name: config.cloudinary.cloud_name,
+        api_key: config.cloudinary.api_key,
+        api_secret: config.cloudinary.api_secret
+    });
+
+    // Upload an image
+    const uploadResult = await cloudinary.uploader
+        .upload(
+            file.path, {
+            public_id: file.filename,
+        }
+        )
+        .catch((error) => {
+            console.log(error);
+        });
+
+    console.log({uploadResult});
+
+    return uploadResult
+}
+
+
+
+
+
+
+export const fileUploader = {
+    upload,
+    uploadToCloudinary
+}
+```
+
+- user.service.ts 
+
+```ts
+import bcrypt from "bcryptjs";
+import { createPatientInput } from "./user.interface";
+import { prisma } from "../../shared/prisma";
+import { Request } from "express";
+import { fileUploader } from "../../helper/fileUploader";
+
+const createPatient = async (req: Request) => {
+
+    if (req.file) {
+        const uploadResult = await fileUploader.uploadToCloudinary(req.file)
+        console.log(uploadResult)
+        req.body.patient.profilePhoto = uploadResult?.secure_url
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body.password, 10)
+
+    const result = await prisma.$transaction(async (tnx) => {
+        await tnx.user.create({
+            data: {
+                email: req.body.patient.email,
+                password: hashedPassword
+            }
+        })
+
+        return await tnx.patient.create({
+            data: req.body.patient
+        })
+    })
+
+    return result
+}
+
+export const UserService = {
+    createPatient
+}
+```
