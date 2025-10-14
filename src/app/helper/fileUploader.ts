@@ -15,9 +15,10 @@ const upload = multer({ storage: storage })
 
 // use cloudinary
 const uploadToCloudinary = async(file:Express.Multer.File)=>{
-    
+    console.log(file)
 }
 
 export const fileUploader ={
-  upload
+  upload,
+  uploadToCloudinary
 }
