@@ -616,3 +616,238 @@ export const UserService = {
     createPatient
 }
 ```
+
+## 57-8 Implementing User Login
+- lets login with the created user. 
+- auth.routes.ts 
+
+```ts 
+import express, { NextFunction, Request, Response } from 'express'
+import { AuthController } from './auth.controller'
+
+const router = express.Router()
+
+router.post("/login", AuthController.login)
+
+export const AuthRoutes = router 
+```
+- auth.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+
+import sendResponse from "../../shared/sendResponse";
+import { AuthServices } from "./auth.service";
+
+const login = catchAsync(async (req: Request, res: Response) => {
+
+    const result = await AuthServices.login(req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "User Logged In Successfully",
+        data: result
+    })
+})
+
+
+export const AuthController = {
+    login
+}
+```
+- auth.service.ts 
+
+```ts 
+import { UserStatus } from "@prisma/client"
+import { prisma } from "../../shared/prisma"
+import bcrypt from 'bcryptjs';
+
+const login = async (payload: { email: string, password: string }) => {
+    const user = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: payload.email,
+            status: UserStatus.ACTIVE
+        }
+    })
+
+    const isCorrectPassword = await bcrypt.compare(payload.password, user.password)
+
+    if(!isCorrectPassword){
+        throw new Error("Password Incorrect")
+    }
+    // if password correct we will generate token 
+}
+
+export const AuthServices = {
+    login
+}
+```
+
+## 57-9 Generating JWT Token
+
+- install jwt 
+
+```
+npm i jsonwebtoken
+```
+- import types for jwt 
+
+```
+npm i --save-dev @types/jsonwebtoken
+```
+- auth.service.ts 
+
+```ts 
+import { UserStatus } from "@prisma/client"
+import { prisma } from "../../shared/prisma"
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken'
+
+const login = async (payload: { email: string, password: string }) => {
+    console.log(payload)
+    const user = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: payload.email,
+            status: UserStatus.ACTIVE
+        }
+    })
+
+    console.log(user)
+
+    const isCorrectPassword = await bcrypt.compare(payload.password, user.password)
+
+    if(!isCorrectPassword){
+        throw new Error("Password Incorrect")
+    }
+    //  generate access token 
+    const accessToken = jwt.sign({email: user.email, role: user.role}, "abc", {
+        algorithm:"HS256",
+        expiresIn :"1h"
+    })
+
+    // generate refresh token 
+        const refreshToken = jwt.sign({email: user.email, role: user.role}, "abc", {
+        algorithm:"HS256",
+        expiresIn :"90d"
+    })
+
+
+    return {
+        accessToken,
+        refreshToken
+    }
+}
+
+export const AuthServices = {
+    login
+}
+```
+## 57-10 Storing Token in Cookies
+- helpers -> jwtHelper.ts 
+
+```ts 
+import jwt, { Secret, SignOptions } from "jsonwebtoken";
+const generateToken = (payload: any, secret: Secret, expiresIn: string) => {
+    //  generate access token 
+    const token = jwt.sign(payload, secret, {
+        algorithm: "HS256",
+        expiresIn
+    } as SignOptions
+    )
+
+    return token
+}
+
+export const jwtHelper ={
+    generateToken
+}
+```
+- auth.service.ts 
+
+```ts 
+import { UserStatus } from "@prisma/client"
+import { prisma } from "../../shared/prisma"
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken'
+import { jwtHelper } from "../../helper/jwtHelper";
+
+const login = async (payload: { email: string, password: string }) => {
+    console.log(payload)
+    const user = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: payload.email,
+            status: UserStatus.ACTIVE
+        }
+    })
+
+    console.log(user)
+
+    const isCorrectPassword = await bcrypt.compare(payload.password, user.password)
+
+    if(!isCorrectPassword){
+        throw new Error("Password Incorrect")
+    }
+    //  generate access token 
+    const accessToken = jwtHelper.generateToken({email: user.email, role: user.role}, "abc","1h")
+
+    // generate refresh token 
+        const refreshToken = jwtHelper.generateToken({email: user.email, role: user.role}, "abc","90d")
+
+
+    return {
+        accessToken,
+        refreshToken,
+        needPasswordChange : user.needPasswordChange
+    }
+}
+
+export const AuthServices = {
+    login
+}
+```
+- set in cookies 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+
+import sendResponse from "../../shared/sendResponse";
+import { AuthServices } from "./auth.service";
+
+const login = catchAsync(async (req: Request, res: Response) => {
+
+    const result = await AuthServices.login(req.body)
+
+    const { accessToken, refreshToken, needPasswordChange } = result
+
+    res.cookie("accessToken", accessToken, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60
+    })
+    res.cookie("refreshToken", refreshToken, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24 * 90
+    })
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "User Logged In Successfully",
+        data: { needPasswordChange }
+    })
+})
+
+
+export const AuthController = {
+    login
+}
+```
+
+## This is about authentication system of user  
+
