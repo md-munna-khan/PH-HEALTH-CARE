@@ -23,6 +23,12 @@ const result = await prisma.$transaction(async (tnx)=>{
 return result
 
 }
+
+const getAllFromDB= async()=>{
+    const result = await prisma.user.findMany();
+    return result
+}
 export const UserService ={
-    createPatient
+    createPatient,
+    getAllFromDB
 }
