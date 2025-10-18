@@ -155,3 +155,88 @@ export const UserService = {
   getAllFromDB,
 };
 ```
+
+## 58-3 Fetch All Users with Filtering, 58-4 Implement Pick Function for Query Parameters
+
+- helpers -> pick.ts
+
+```ts
+const pick = <T extends Record<string, unknown>, K extends keyof T>(
+  obj: T,
+  keys: K[]
+): Partial<T> => {
+  console.log({ obj, keys });
+
+  const finalObject: Partial<T> = {};
+
+  for (const key of keys) {
+    if (obj && Object.hasOwnProperty.call(obj, key)) {
+      finalObject[key] = obj[key];
+    }
+  }
+
+  // Object.hasOwnProperty.call(obj, key) checks safely if the obj has its own property key. Using call() avoids issues if obj has a custom hasOwnProperty method or if it was shadowed.Also ensures obj is not null or undefined.
+
+  console.log(finalObject);
+
+  return finalObject;
+};
+
+export default pick;
+```
+
+```ts
+<T extends Record<string, unknown>>
+
+T is a generic type parameter representing the type of the input object.
+
+The constraint extends Record<string, unknown> means:
+
+T must be an object whose keys are strings, and whose values can be anything (unknown).
+
+K extends keyof T
+
+K is another generic type parameter.
+
+keyof T means all the keys of the object T.
+
+So K must be one (or more) of the keys in T.
+
+Parameters:
+
+obj: T → the object you want to extract properties from.
+
+keys: K[] → an array of property names (keys) you want to "pick" from obj.
+
+Return type:
+
+```
+
+- user.controller.ts
+
+```ts
+const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
+  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
+  // random -> fields , searchTerm --> searching, filtering
+
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+
+  const { page, limit, searchTerm, sortBy, sortOrder, role, status } =
+    req.query;
+  const result = await UserService.getAllFromDB({
+    page: Number(page),
+    limit: Number(limit),
+    searchTerm,
+    sortBy,
+    sortOrder,
+    role,
+    status,
+  });
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User Retrieved Successfully",
+    data: result,
+  });
+});
+```
