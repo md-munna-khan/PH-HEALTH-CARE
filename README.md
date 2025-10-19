@@ -240,3 +240,186 @@ const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
   });
 });
 ```
+
+
+## 58-5 Create Pagination Helper Function, 58-6 Apply Prisma Where Conditions for User Data Retrieval, 58-7 Overview of Metadata, Searching, Sorting, Filtering & Pagination
+
+- helper -> pick.ts
+
+```ts
+const pick = <T extends Record<string, unknown>, K extends keyof T>(
+  obj: T,
+  keys: K[]
+): Partial<T> => {
+  console.log({ obj, keys });
+
+  const finalObject: Partial<T> = {};
+
+  for (const key of keys) {
+    if (obj && Object.hasOwnProperty.call(obj, key)) {
+      finalObject[key] = obj[key];
+    }
+  }
+
+  console.log(finalObject);
+
+  return finalObject;
+};
+
+export default pick;
+```
+
+- helper -> paginationHelper.ts
+
+```ts
+type IOptions = {
+  page?: string | number;
+  limit?: string | number;
+  sortBy?: string;
+  sortOrder?: string;
+};
+
+type IOptionsResult = {
+  page: number;
+  limit: number;
+  skip: number;
+  sortBy: string;
+  sortOrder: string;
+};
+const calculatePagination = (options: IOptions): IOptionsResult => {
+  const page: number = Number(options.page) || 1;
+  const limit: number = Number(options.limit) || 10;
+  const skip: number = Number(page - 1) * limit;
+
+  const sortBy: string = options.sortBy || "createdAt";
+  const sortOrder: string = options.sortOrder || "desc";
+
+  return {
+    page,
+    limit,
+    skip,
+    sortBy,
+    sortOrder,
+  };
+};
+
+export const paginationHelper = {
+  calculatePagination,
+};
+```
+
+- user.constant.ts
+
+```ts
+export const userSearchableFields = ["email"];
+export const userFilterableField = ["status", "role", "email", "searchTerm"];
+```
+
+- user.controller.ts
+
+```ts
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+import pick from "../../helper/pick";
+import { userFilterableField } from "./user.contant";
+
+const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
+  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
+  // random -> fields , searchTerm --> searching, filtering
+
+  // const filters = pick(req.query, ["status", "role", "email", "searchTerm"])
+
+  // const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"])
+
+  const filters = pick(req.query, userFilterableField);
+
+  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+
+  // const { page, limit, searchTerm, sortBy, sortOrder, role, status } = req.query
+  const result = await UserService.getAllFromDB(filters, options);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "User Retrieved Successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+export const UserController = {
+  getAllFromDB,
+};
+```
+
+- user.service.ts
+
+```ts
+import bcrypt from "bcryptjs";
+import { createPatientInput } from "./user.interface";
+import { prisma } from "../../shared/prisma";
+import { Request } from "express";
+import { fileUploader } from "../../helper/fileUploader";
+import { Admin, Doctor, Prisma, UserRole } from "@prisma/client";
+import { paginationHelper } from "../../helper/paginationHelper";
+import { userSearchableFields } from "./user.contant";
+
+const getAllFromDB = async (params: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
+    const { searchTerm, ...filterData } = params;
+
+    const andConditions: Prisma.UserWhereInput[] = [];
+
+    if (searchTerm) {
+        andConditions.push({
+            OR: userSearchableFields.map(field => ({
+                [field]: {
+                    contains: searchTerm,
+                    mode: "insensitive"
+                }
+            }))
+        })
+    }
+
+    if (Object.keys(filterData).length > 0) {
+        andConditions.push({
+            AND: Object.keys(filterData).map(key => ({
+                [key]: {
+                    equals: (filterData as any)[key]
+                }
+            }))
+        })
+    }
+
+    const whereConditions: Prisma.UserWhereInput = andConditions.length > 0 ? {
+        AND: andConditions
+    } : {}
+
+    const result = await prisma.user.findMany({
+        skip,
+        take: limit,
+
+        where: whereConditions,
+        orderBy: {
+            [sortBy]: sortOrder
+        }
+    });
+
+    const total = await prisma.user.count({
+        where: whereConditions
+    });
+    return {
+        meta: {
+            page,
+            limit,
+            total
+        },
+        data: result
+    };
+}
+
+export const UserService = {
+  getAllFromDB,
+};
+```
