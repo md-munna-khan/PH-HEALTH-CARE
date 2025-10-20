@@ -14,7 +14,7 @@ const doctorScheduleData = payload.scheduleIds.map(scheduleId =>({
     doctorId:doctorData.id,
     scheduleId
 }))
-console.log(doctorScheduleData)
+
 return  await prisma.doctorSchedules.createMany({
     data:doctorScheduleData
 });
