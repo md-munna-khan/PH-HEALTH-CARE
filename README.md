@@ -773,3 +773,154 @@ export const DoctorScheduleService = {
     ]
 }
 ```
+
+## 59-10 Fixing & Enhancing “Get Available Schedule for Doctor” Functionality
+
+- Here is a problem after booking a schedule the schedules should not be shown. 
+
+- schedule.routes.ts 
+
+```ts 
+import express from 'express'
+import { ScheduleController } from './schedule.controller'
+import auth from '../../middlewares/auth'
+import { UserRole } from '@prisma/client'
+
+
+
+const router = express.Router()
+
+router.get("/", auth(UserRole.DOCTOR, UserRole.ADMIN), ScheduleController.schedulesForDoctor)
+
+
+export const ScheduleRoutes = router
+```
+
+- schedule.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import sendResponse from "../../shared/sendResponse";
+import { ScheduleService } from "./schedule.service";
+import pick from "../../helper/pick";
+import { IJWTPayload } from '../../types/common';
+
+
+const schedulesForDoctor = catchAsync(async (req: Request & {user?:IJWTPayload}, res: Response) => {
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]) // pagination and sorting
+    const filters = pick(req.query, ["startDateTime", "endDateTime"])
+
+    const user = req.user
+    const result = await ScheduleService.schedulesForDoctor(user as IJWTPayload, filters, options)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Schedule fetched Successfully",
+        meta: result.meta,
+        data: result.data
+    })
+})
+
+export const ScheduleController = {
+    insertIntoDB,
+    schedulesForDoctor,
+    deleteScheduleFromDB
+}
+```
+
+- schedule.service.ts 
+
+```ts 
+import { addHours, addMinutes, format } from "date-fns";
+import { prisma } from "../../shared/prisma";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { Prisma } from "@prisma/client";
+import { IJWTPayload } from '../../types/common';
+
+
+const schedulesForDoctor = async (user: IJWTPayload, filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
+    const { startDateTime: filterStartDateTime, endDateTime: filterEndDateTime } = filters
+
+    const andConditions: Prisma.ScheduleWhereInput[] = [];
+
+    if (filterStartDateTime && filterEndDateTime) {
+        andConditions.push({
+            AND: [
+                {
+                    startDateTime: {
+                        gte: filterStartDateTime
+                    }
+                },
+                {
+                    endDateTime: {
+                        lte: filterEndDateTime
+                    }
+                }
+            ]
+        })
+    }
+
+    const whereConditions: Prisma.ScheduleWhereInput = andConditions.length > 0 ? {
+        AND: andConditions
+    } : {}
+
+    const doctorSchedules = await prisma.doctorSchedules.findMany({
+        where: {
+            doctor: {
+                email: user.email
+            }
+        },
+        select: {
+            scheduleId: true
+        }
+    })
+
+    const doctorScheduleIds = doctorSchedules.map(schedule => schedule.scheduleId)
+
+
+
+    const result = await prisma.schedule.findMany({
+        where: {
+            ...whereConditions,
+            id: {
+                notIn: doctorScheduleIds
+            }
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        }
+    })
+
+    const total = await prisma.schedule.count({
+        where: {
+            ...whereConditions,
+            id: {
+                notIn: doctorScheduleIds
+            }
+        },
+    });
+
+    return {
+        meta: {
+            page,
+            limit,
+            total
+        },
+        data: result
+    };
+
+}
+
+
+
+// Export this service so it can be imported in other modules, like controllers
+export const ScheduleService = {
+    schedulesForDoctor,
+};
+
+```
