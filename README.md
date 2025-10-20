@@ -671,3 +671,256 @@ export const ScheduleService = {
 };
 
 ```
+
+## 59-8 Creating Doctor Schedule – Part 1, 59-9 Creating Doctor Schedule – Part 2 & Handling User Type (JWT Payload)
+
+- app -> types -> common.ts 
+
+```ts 
+import { UserRole } from "@prisma/client";
+
+export type IJWTPayload = {
+    email: string;
+    role: UserRole
+
+}
+```
+- doctorSchedule.routes.ts 
+
+```ts 
+import express from 'express';
+import { DoctorScheduleController } from './doctorSchedule.controller';
+import { UserRole } from '@prisma/client';
+import auth from '../../middlewares/auth';
+const router = express.Router()
+
+router.post("/", auth(UserRole.DOCTOR), DoctorScheduleController.insertIntoDB)
+
+export const doctorScheduleRoutes = router
+
+```
+- doctorSchedule.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import sendResponse from "../../shared/sendResponse";
+import { DoctorScheduleService } from "./doctorSchedule.service";
+import { IJWTPayload } from "../../types/common";
+
+
+
+
+
+const insertIntoDB = catchAsync(async (req: Request & {user?:IJWTPayload}, res: Response) => {
+    const user = req.user
+    const result = await DoctorScheduleService.insertIntoDB(user as IJWTPayload, req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Doctor Schedule Created Successfully",
+        data: result
+    })
+})
+
+
+
+export const DoctorScheduleController = {
+    insertIntoDB,
+}
+```
+- doctorSchedule.service.ts 
+
+```ts 
+import { prisma } from "../../shared/prisma"
+import { IJWTPayload } from "../../types/common";
+
+const insertIntoDB = async (user: IJWTPayload, payload: {
+    scheduleIds: string[]
+}) => {
+    console.log({ user, payload })
+
+    const doctorData = await prisma.doctor.findUniqueOrThrow({
+        where: {
+            email: user.email
+        }
+    });
+
+
+    const doctorScheduleData = payload.scheduleIds.map(scheduleId => ({
+        doctorId: doctorData.id,
+        scheduleId
+    }))
+
+    return await prisma.doctorSchedules.createMany({
+        data: doctorScheduleData
+    })
+}
+
+
+export const DoctorScheduleService = {
+    insertIntoDB
+}
+```
+
+```json 
+{
+    "scheduleIds" :[
+        "10849da6-efc9-4027-83e7-77b206d2bcb8",
+        "fbb3acb1-fb5a-4496-b108-b3e843b29235",
+        "f607f1b9-90fe-4524-a5c9-0675347c20ef"
+    ]
+}
+```
+
+## 59-10 Fixing & Enhancing “Get Available Schedule for Doctor” Functionality
+
+- Here is a problem after booking a schedule the schedules should not be shown. 
+
+- schedule.routes.ts 
+
+```ts 
+import express from 'express'
+import { ScheduleController } from './schedule.controller'
+import auth from '../../middlewares/auth'
+import { UserRole } from '@prisma/client'
+
+
+
+const router = express.Router()
+
+router.get("/", auth(UserRole.DOCTOR, UserRole.ADMIN), ScheduleController.schedulesForDoctor)
+
+
+export const ScheduleRoutes = router
+```
+
+- schedule.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import sendResponse from "../../shared/sendResponse";
+import { ScheduleService } from "./schedule.service";
+import pick from "../../helper/pick";
+import { IJWTPayload } from '../../types/common';
+
+
+const schedulesForDoctor = catchAsync(async (req: Request & {user?:IJWTPayload}, res: Response) => {
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]) // pagination and sorting
+    const filters = pick(req.query, ["startDateTime", "endDateTime"])
+
+    const user = req.user
+    const result = await ScheduleService.schedulesForDoctor(user as IJWTPayload, filters, options)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Schedule fetched Successfully",
+        meta: result.meta,
+        data: result.data
+    })
+})
+
+export const ScheduleController = {
+    insertIntoDB,
+    schedulesForDoctor,
+    deleteScheduleFromDB
+}
+```
+
+- schedule.service.ts 
+
+```ts 
+import { addHours, addMinutes, format } from "date-fns";
+import { prisma } from "../../shared/prisma";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { Prisma } from "@prisma/client";
+import { IJWTPayload } from '../../types/common';
+
+
+const schedulesForDoctor = async (user: IJWTPayload, filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
+    const { startDateTime: filterStartDateTime, endDateTime: filterEndDateTime } = filters
+
+    const andConditions: Prisma.ScheduleWhereInput[] = [];
+
+    if (filterStartDateTime && filterEndDateTime) {
+        andConditions.push({
+            AND: [
+                {
+                    startDateTime: {
+                        gte: filterStartDateTime
+                    }
+                },
+                {
+                    endDateTime: {
+                        lte: filterEndDateTime
+                    }
+                }
+            ]
+        })
+    }
+
+    const whereConditions: Prisma.ScheduleWhereInput = andConditions.length > 0 ? {
+        AND: andConditions
+    } : {}
+
+    const doctorSchedules = await prisma.doctorSchedules.findMany({
+        where: {
+            doctor: {
+                email: user.email
+            }
+        },
+        select: {
+            scheduleId: true
+        }
+    })
+
+    const doctorScheduleIds = doctorSchedules.map(schedule => schedule.scheduleId)
+
+
+
+    const result = await prisma.schedule.findMany({
+        where: {
+            ...whereConditions,
+            id: {
+                notIn: doctorScheduleIds
+            }
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        }
+    })
+
+    const total = await prisma.schedule.count({
+        where: {
+            ...whereConditions,
+            id: {
+                notIn: doctorScheduleIds
+            }
+        },
+    });
+
+    return {
+        meta: {
+            page,
+            limit,
+            total
+        },
+        data: result
+    };
+
+}
+
+
+
+// Export this service so it can be imported in other modules, like controllers
+export const ScheduleService = {
+    schedulesForDoctor,
+};
+
+```
