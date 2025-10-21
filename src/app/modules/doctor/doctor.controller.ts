@@ -17,7 +17,21 @@ const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
         statusCode: 200,
         success: true,
         message: "Doctor fetched successfully!",
-        
+        meta:result.meta,
+        data: result.data
+    })
+})
+
+
+const updateIntoDB = catchAsync(async (req: Request, res: Response) => {
+  const{id}=req.params
+    const result = await DoctorService.updateIntoDB(id,req.body);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Doctor fetched successfully!",
+      
         data: result
     })
 })
@@ -27,5 +41,5 @@ const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
 
 export const DoctorController = {
     getAllFromDB,
-  
+  updateIntoDB
 }
