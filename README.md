@@ -151,3 +151,43 @@ if (!isCorrectPassword) {
   throw new ApiError(httpStatus.BAD_REQUEST, "Password Incorrect");
 }
 ```
+## 60-4 Applying Zod Validations
+
+- doctorschedule.routes.ts
+
+```ts
+import express from "express";
+import { DoctorScheduleController } from "./doctorSchedule.controller";
+import { UserRole } from "@prisma/client";
+import auth from "../../middlewares/auth";
+import validateRequest from "../../middlewares/validateRequest";
+import { DoctorScheduleValidation } from "./doctorSchedule.validation";
+const router = express.Router();
+
+router.post(
+  "/",
+  auth(UserRole.DOCTOR),
+  validateRequest(
+    DoctorScheduleValidation.createDoctorScheduleValidationSchema
+  ),
+  DoctorScheduleController.insertIntoDB
+);
+
+export const doctorScheduleRoutes = router;
+```
+
+- doctorSchedule.validation.ts
+
+```ts
+import z from "zod";
+
+const createDoctorScheduleValidationSchema = z.object({
+  body: z.object({
+    scheduleIds: z.array(z.string()),
+  }),
+});
+
+export const DoctorScheduleValidation = {
+  createDoctorScheduleValidationSchema,
+};
+```
