@@ -1,6 +1,4 @@
 
-
-
 import express, { NextFunction, Request, Response } from 'express'
 import { UserController } from './user.controller';
 import { fileUploader } from '../../helper/fileUploader';
