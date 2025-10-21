@@ -106,3 +106,48 @@ const globalErrorHandler = (
 
 export default globalErrorHandler;
 ```
+## 60-3 Implementing ApiError Handling
+
+- middlewares -> globalErrorHandlers.ts
+
+```ts
+class ApiError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string | undefined, stack = "") {
+    super(message);
+    this.statusCode = statusCode;
+    if (stack) {
+      this.stack = stack;
+    } else {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+}
+
+export default ApiError;
+```
+
+- app -> errors -> ApiError.ts
+
+```ts
+class ApiError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string | undefined, stack = "") {
+    super(message);
+    this.statusCode = statusCode;
+    if (stack) {
+      this.stack = stack;
+    } else {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+}
+
+export default ApiError;
+```
+
+```ts
+if (!isCorrectPassword) {
+  throw new ApiError(httpStatus.BAD_REQUEST, "Password Incorrect");
+}
+```
