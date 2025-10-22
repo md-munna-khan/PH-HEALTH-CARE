@@ -19,6 +19,11 @@ const globalErrorHandler = (
         (error = error.meta),
         (statusCode = httpStatus.CONFLICT);
     }
+    if (error.code == "P2025") {
+      (message = "slot is already booked"),
+        (error = error.meta),
+        (statusCode = httpStatus.CONFLICT);
+    }
     if (error.code == "P1000") {
       (message = "Authentication failed against database server!"),
         (error = error.meta),
