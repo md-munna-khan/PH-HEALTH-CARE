@@ -8,6 +8,7 @@ import httpStatus from "http-status";
 import { IDoctorUpdateInput } from "./doctor.interface";
 import ApiError from "../../errors/ApiError";
 import { openai } from "../../helper/open-router";
+import { extractJsonFromMessage } from "../../helper/extracrJsonFromMessage";
 
 
 
@@ -162,7 +163,7 @@ ${JSON.stringify(doctors, null, 2)}
 
 Return your response in JSON format with full individual doctor data. 
 `;
-
+console.log("analysing")
 const completion = await openai.chat.completions.create({
     model: 'z-ai/glm-4.5-air:free',
     messages: [
@@ -177,7 +178,9 @@ const completion = await openai.chat.completions.create({
     ],
   });
 
-console.log(doctors)
+console.log(completion.choices[0].message.content);
+   const result = await extractJsonFromMessage(completion.choices[0].message)
+    return result;
 }
 
 export const DoctorService = {

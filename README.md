@@ -168,7 +168,6 @@ const getAISuggestions = async (payload: { symptoms: string }) => {
             }
         }
     })
-
     const prompt = `
 You are a medical assistant AI. Based on the patient's symptoms, suggest the top 3 most suitable doctors.
 Each doctor has specialties and years of experience.
@@ -197,12 +196,134 @@ const completion = await openai.chat.completions.create({
   });
 
 
-    console.log(doctors)
+    console.log(completion.choices[0].message);
 }
 
 export const DoctorService = {
 
     getAISuggestions
+}
+
+```
+## 61-3 Implementing AI-Driven Doctor Suggestion – Part 2, 61-3 Implementing AI-Driven Doctor Suggestion – Part 2, 61-4 Implementing AI-Driven Doctor Suggestion – Part 3
+
+- helper -> extractJsonFromMessage.ts
+
+```ts 
+export const extractJsonFromMessage = (message: any) => {
+    try {
+        const content = message?.content || "";
+
+        // 1. Try to extract JSON code block (```json ... ```)
+        const jsonBlockMatch = content.match(/```json([\s\S]*?)```/);
+        if (jsonBlockMatch) {
+            const jsonText = jsonBlockMatch[1].trim();
+            return JSON.parse(jsonText);
+        }
+
+        // 2. If no code block, try to directly parse JSON if response is plain JSON
+        if (content.trim().startsWith("[") || content.trim().startsWith("{")) {
+            return JSON.parse(content);
+        }
+
+        // 3. Try to find the first JSON-like substring (fallback)
+        const jsonFallbackMatch = content.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+        if (jsonFallbackMatch) {
+            return JSON.parse(jsonFallbackMatch[1]);
+        }
+
+        // 4. If still no valid JSON found
+        return [];
+    } catch (error) {
+        console.error("Error parsing AI response:", error);
+        return [];
+    }
+};
+```
+- doctor.service.ts 
+
+
+```ts 
+import { Doctor, Prisma } from "@prisma/client";
+import { prisma } from "../../shared/prisma";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status';
+import { openai } from "../../helper/open-router";
+import { extractJsonFromMessage } from "../../helper/extractJsonFromMessage";
+
+
+const getAISuggestions = async (payload: { symptoms: string }) => {
+    // implement ai suggestion system 
+
+    console.log(payload)
+
+    if (!(payload && payload.symptoms)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Symptom is Required!")
+    }
+
+    const doctors = await prisma.doctor.findMany({
+        where: {
+            isDeleted: false
+        },
+        include: {
+            doctorSpecialties: {
+                include: {
+                    specialities: true
+                }
+            }
+        }
+    })
+
+    console.log("doctors data loaded......\n")
+
+    const prompt = `
+You are a medical assistant AI. Based on the patient's symptoms, suggest the top 3 most suitable doctors.
+Each doctor has specialties and years of experience.
+Only suggest doctors who are relevant to the given symptoms.
+
+Symptoms: ${payload.symptoms}
+
+Here is the doctor list (in JSON):
+${JSON.stringify(doctors, null, 2)}
+
+Return your response in JSON format with full individual doctor data. 
+`;
+
+
+    console.log("analyzing...\n")
+
+    const completion = await openai.chat.completions.create({
+        model: 'z-ai/glm-4.5-air:free',
+        messages: [
+            {
+                role: 'system',
+                content: "You are a helpful AI medical assistant that provides doctor suggestions.",
+            },
+            {
+                role: 'user',
+                content: prompt,
+            },
+        ],
+    });
+
+
+    console.log(doctors)
+
+    console.log(completion.choices[0].message)
+
+    const result = await extractJsonFromMessage(completion.choices[0].message)
+    return result;
+}
+
+export const DoctorService = {
+    getAISuggestions
+}
+
+```
+
+```json
+{
+ "symptoms" : ":chestpain, shortness of breath, and irregular heartbeat"
 }
 
 ```
