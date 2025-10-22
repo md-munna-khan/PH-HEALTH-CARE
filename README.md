@@ -327,3 +327,201 @@ export const DoctorService = {
 }
 
 ```
+
+## 61-5 Creating Appointment, Payment, and Prescription Schemas, 61-6 Defining Relationships & Migrating Appointment, Payment, and Prescription to Database
+
+![alt text](image-10.png)
+
+- appointment.prisma
+
+```prisma 
+model Appointment {
+    id             String            @id @default(uuid())
+    patientId      String
+    patient        Patient           @relation(fields: [patientId], references: [id])
+    doctorId       String
+    doctor         Doctor            @relation(fields: [doctorId], references: [id])
+    scheduleId     String
+    schedule       Schedule          @relation(fields: [scheduleId], references: [id])
+    videoCallingId String
+    status         AppointmentStatus @default(SCHEDULED)
+    paymentStatus  PaymentStatus     @default(UNPAID)
+    createAt       DateTime          @default(now())
+    updateAt       DateTime          @updatedAt
+    payment        Payment?
+    prescription   Prescription?
+
+    @@map("appointments")
+}
+
+model Payment {
+    id                 String        @id @default(uuid())
+    appointmentId      String        @unique
+    appointment        Appointment   @relation(fields: [appointmentId], references: [id])
+    amount             Float
+    transactionId      String        @unique
+    status             PaymentStatus @default(UNPAID)
+    paymentGatewayData Json?
+    createAt           DateTime      @default(now())
+    updateAt           DateTime      @updatedAt
+    @@map("payments")
+}
+
+model Prescription {
+    id            String      @id @default(uuid())
+    appointmentId String      @unique
+    appointment   Appointment @relation(fields: [appointmentId], references: [id])
+    doctorId      String
+    doctor        Doctor      @relation(fields: [doctorId], references: [id])
+    patientId     String
+    patient       Patient     @relation(fields: [patientId], references: [id])
+    instructions  String
+    followUpDate  DateTime?
+    createAt      DateTime    @default(now())
+    updateAt      DateTime    @updatedAt
+
+    @@map("prescriptions")
+}
+
+```
+
+- enum.prisma
+
+```prisma 
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+
+enum AppointmentStatus {
+    SCHEDULED
+    INPROGRESS
+    COMPLETED
+    CANCEL
+}
+
+enum PaymentStatus {
+    PAID
+    UNPAID
+}
+```
+
+- schedule.prisma 
+
+```prisma
+model Schedule {
+    id              String            @id @default(uuid())
+    startDateTime   DateTime
+    endDateTime     DateTime
+    createdAt       DateTime          @default(now())
+    updatedAt       DateTime          @updatedAt
+    doctorSchedules DoctorSchedules[]
+    appointments    Appointment[]
+
+    @@map("schedules")
+}
+
+model DoctorSchedules {
+    doctorId   String
+    doctor     Doctor   @relation(fields: [doctorId], references: [id])
+    scheduleId String
+    schedule   Schedule @relation(fields: [scheduleId], references: [id])
+    isBooked   Boolean  @default(false)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@id([doctorId, scheduleId]) // composite primary key 
+    // we have made primary key because these two needs to be different and because a doctor will not be able to see multiple patient at a time 
+    @@map("doctor_schedules")
+}
+```
+
+- user.prisma
+
+```prisma
+model User {
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  password           String
+  role               UserRole   @default(PATIENT)
+  needPasswordChange Boolean    @default(true)
+  status             UserStatus @default(ACTIVE)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  admin              Admin?
+  doctor             Doctor?
+  patient            Patient?
+
+  @@map("users") // in which name will be saved in the database 
+}
+
+model Admin {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  profilePhoto  String?
+  contactNumber String
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [email], references: [email])
+
+  @@map("admins")
+}
+
+model Doctor {
+  id                  String   @id @default(uuid())
+  name                String
+  email               String   @unique
+  profilePhoto        String?
+  contactNumber       String
+  address             String
+  registrationNumber  String
+  experience          Int      @default(0)
+  gender              Gender
+  appointmentFee      Int
+  qualification       String
+  currentWorkingPlace String
+  designation         String
+  isDeleted           Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [email], references: [email])
+
+  doctorSchedules   DoctorSchedules[]
+  doctorSpecialties DoctorSpecialties[]
+  appointments       Appointment[]
+  prescriptions      Prescription[]
+
+  @@map("doctors")
+}
+
+model Patient {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  profilePhoto  String?
+  address       String?
+  isDeleted     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [email], references: [email])
+  appointments  Appointment[]
+  prescriptions Prescription[]
+
+  @@map("patients")
+}
+```
