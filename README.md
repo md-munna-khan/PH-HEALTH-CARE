@@ -626,12 +626,11 @@ export const DoctorService = {
 
 ```json 
 {
-
-    "name" : "Dr.Sazid",
-    "specialties" :[
+    "name":"Dr.Munna",
+    "specialties":[
         {
-            "specialtyId" : "dd521768-f2cd-48e8-9454-a5a1a8cfbacc",
-            "isDeleted" : true
+            "specialtyId":"f9f48fb3-9632-4381-b09b-f6e007ca2886",
+            "isDeleted":false
         }
     ]
 }
