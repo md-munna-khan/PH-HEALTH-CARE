@@ -1,6 +1,6 @@
 
 
-import { Doctor, Prisma } from "@prisma/client";
+import {  Prisma } from "@prisma/client";
 import { IOptions, paginationHelper } from "../../helper/paginationHelper";
 import { doctorSearchableFields } from "./doctor.constant";
 import { prisma } from "../../shared/prisma";
@@ -24,6 +24,23 @@ andConditions.push({
     }))
 })
   }
+
+  if(specialties && specialties.length >0){
+andConditions.push({
+    doctorSpecialties:{
+        some:{
+            specialities:{
+                title:{
+                    contains:specialties,
+                    mode:"insensitive"
+                }
+            }
+        }
+    }
+})
+  }
+
+
   if(Object.keys(filterData).length >0){
     const filterConditions = Object.keys(filterData).map((key)=>({
         [key]:{
@@ -40,6 +57,13 @@ const result = await prisma.doctor.findMany({
     take:limit,
     orderBy:{
         [sortBy]:sortOrder
+    },
+    include:{
+        doctorSpecialties:{
+            include:{
+                specialities:true
+            }
+        }
     }
 });
 const total = await prisma.doctor.count({
@@ -63,11 +87,13 @@ const doctorInfo = await prisma.doctor.findUniqueOrThrow({
 })
 
 const {specialties,...doctorData}=payload;
+
+return  await prisma.$transaction(async(tnx)=>{
 if(specialties && specialties.length >0){
 const deleteSpecialtyIds = specialties.filter((specialty)=>specialty.isDeleted)
 
 for(const specialty of deleteSpecialtyIds){
-    await prisma.doctorSpecialties.deleteMany({
+    await tnx.doctorSpecialties.deleteMany({
         where:{
             doctorId:id,
             specialitiesId:specialty.specialtyId
@@ -77,7 +103,7 @@ for(const specialty of deleteSpecialtyIds){
 
 const createSpecialtyIds = specialties.filter((specialty)=> !specialty.isDeleted)
 for(const specialty of createSpecialtyIds){
-    await prisma.doctorSpecialties.create({
+    await tnx.doctorSpecialties.create({
         data:{
             doctorId:id,
             specialitiesId:specialty.specialtyId
@@ -86,7 +112,7 @@ for(const specialty of createSpecialtyIds){
 }
 }
 
-const updateData = await prisma.doctor.update({
+const updateData = await tnx.doctor.update({
     where:{
         id:doctorInfo.id
     },
@@ -101,6 +127,8 @@ const updateData = await prisma.doctor.update({
     // doctor - doctorSpecialities - specialities - 
 })
 return updateData
+})
+
 }
 
 export const DoctorService = {
