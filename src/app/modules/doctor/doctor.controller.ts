@@ -3,12 +3,12 @@
 
 import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync";
-import { IJWTPayload } from "../../types/common";
+
 import pick from "../../helper/pick";
 import { DoctorService } from "./doctor.service";
 import sendResponse from "../../shared/sendResponse";
 import { doctorFilterableFields } from "./doctor.constant";
-import { ca } from "zod/v4/locales";
+
 
 const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
     const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
