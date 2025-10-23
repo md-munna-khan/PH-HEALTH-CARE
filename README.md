@@ -485,3 +485,127 @@ add this path in env computer
 ![alt text](image-19.png)
 
 ![alt text](image-20.png)
+
+
+## 62-6 Fetching Appointments for Doctor or Patient, 62-7 Troubleshooting Issues in Fetching Appointments & Finding Solutions
+- appointment.route.ts 
+
+```ts 
+import express from "express";
+import { AppointmentController } from "./appointment.controller";
+import auth from "../../middlewares/auth";
+import { UserRole } from "@prisma/client";
+
+const router = express.Router();
+
+router.get("/my-appointments", auth(UserRole.PATIENT), AppointmentController.getMyAppointment )
+
+
+
+export const AppointmentRoutes = router;
+```
+- appointment.route.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { AppointmentService } from "./appointment.service";
+import sendResponse from "../../shared/sendResponse";
+import { IJWTPayload } from "../../types/common";
+import pick from "../../helper/pick";
+
+
+const getMyAppointment = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+    const filters = pick(req.query, ["status", "paymentStatus"])
+    const user = req.user
+    const result = await AppointmentService.getMyAppointment(user as IJWTPayload, filters, options);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Appointment Retrieved successfully!",
+        data: result
+    })
+});
+
+export const AppointmentController = {
+    getMyAppointment
+}
+```
+- appointment.service.ts 
+
+```ts 
+import { Prisma, UserRole } from "@prisma/client";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { stripe } from "../../helper/stripe";
+import { prisma } from "../../shared/prisma";
+import { IJWTPayload } from "../../types/common";
+import { v4 as uuidv4 } from 'uuid';
+
+
+const getMyAppointment = async (user: IJWTPayload, filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
+    const { ...filtersData } = filters;
+
+    const andConditions: Prisma.AppointmentWhereInput[] = [];
+
+    if (user.role === UserRole.PATIENT) {
+        andConditions.push({
+            patient: {
+                email: user.email
+            }
+        })
+    }
+    else if (user.role === UserRole.DOCTOR) {
+        andConditions.push({
+            doctor: {
+                email: user.email
+            }
+        })
+    }
+
+    if (Object.keys(filtersData).length > 0) {
+        const filterConditions = Object.keys(filtersData).map(key => ({
+            [key]: {
+                equals: (filtersData as any)[key]
+            }
+        }))
+
+        andConditions.push(...filterConditions)
+    }
+
+    const whereConditions: Prisma.AppointmentWhereInput = andConditions.length > 0 ? { AND: andConditions } : {}
+
+    const result = await prisma.appointment.findMany({
+        where: whereConditions,
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        },
+        include: user.role === UserRole.DOCTOR ?
+            { patient: true } : { doctor: true }
+
+    });
+
+    const total = await prisma.appointment.count({
+        where: whereConditions
+    })
+
+    return {
+        meta: {
+            total,
+            limit,
+            page
+        },
+        data: result
+    }
+
+}
+
+export const AppointmentService = {
+    getMyAppointment
+};
+```
+
