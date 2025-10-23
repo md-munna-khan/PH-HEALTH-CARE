@@ -49,7 +49,7 @@ data:{
 }
  })
 const transactionId = uuidv4();
-await tnx.payment.create({
+const paymentData= await tnx.payment.create({
     data:{
         appointmentId:appointmentData.id,
         amount:doctorData.appointmentFee,
@@ -72,15 +72,15 @@ await tnx.payment.create({
                     quantity: 1,
                 },
             ],
-            // metadata: {
-            //     appointmentId: appointmentData.id,
-            //     paymentId: paymentData.id
-            // },
+            metadata: {
+                appointmentId: appointmentData.id,
+                paymentId: paymentData.id
+            },
             success_url: `https://www.programming-hero.com/`,
             cancel_url: `https://next.programming-hero.com/`,
         });
         console.log(session)
- return appointmentData
+ return {paymentUrl:session.url}
 })
 return result
 };
