@@ -10,6 +10,7 @@ import sendResponse from "../../shared/sendResponse";
 
 // Import a preconfigured Stripe instance (with secret key)
 import { stripe } from "../../helper/stripe";
+import config from "../../../config";
 
 /**
  * @description
@@ -30,7 +31,8 @@ const handleStripeWebhookEvent = catchAsync(async (req: Request, res: Response) 
     // ⚠️ 2. Your webhook secret key from Stripe Dashboard.
     // Each webhook endpoint you create in Stripe has a unique secret.
     // This must match exactly; otherwise, verification will fail.
-    const webhookSecret = "whsec_ae3bd6325b8da0fbcba04075bd69fa83204a4327ead453787f914841aef87692";
+    // const webhookSecret = "whsec_ae3bd6325b8da0fbcba04075bd69fa83204a4327ead453787f914841aef87692"
+    const webhookSecret = config.stripeWebHook as string;
 
     let event;
 

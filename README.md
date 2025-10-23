@@ -485,3 +485,318 @@ add this path in env computer
 ![alt text](image-19.png)
 
 ![alt text](image-20.png)
+
+
+## 62-6 Fetching Appointments for Doctor or Patient, 62-7 Troubleshooting Issues in Fetching Appointments & Finding Solutions
+- appointment.route.ts 
+
+```ts 
+import express from "express";
+import { AppointmentController } from "./appointment.controller";
+import auth from "../../middlewares/auth";
+import { UserRole } from "@prisma/client";
+
+const router = express.Router();
+
+router.get("/my-appointments", auth(UserRole.PATIENT), AppointmentController.getMyAppointment )
+
+
+
+export const AppointmentRoutes = router;
+```
+- appointment.route.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { AppointmentService } from "./appointment.service";
+import sendResponse from "../../shared/sendResponse";
+import { IJWTPayload } from "../../types/common";
+import pick from "../../helper/pick";
+
+
+const getMyAppointment = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
+    const filters = pick(req.query, ["status", "paymentStatus"])
+    const user = req.user
+    const result = await AppointmentService.getMyAppointment(user as IJWTPayload, filters, options);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Appointment Retrieved successfully!",
+        data: result
+    })
+});
+
+export const AppointmentController = {
+    getMyAppointment
+}
+```
+- appointment.service.ts 
+
+```ts 
+import { Prisma, UserRole } from "@prisma/client";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { stripe } from "../../helper/stripe";
+import { prisma } from "../../shared/prisma";
+import { IJWTPayload } from "../../types/common";
+import { v4 as uuidv4 } from 'uuid';
+
+
+const getMyAppointment = async (user: IJWTPayload, filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
+    const { ...filtersData } = filters;
+
+    const andConditions: Prisma.AppointmentWhereInput[] = [];
+
+    if (user.role === UserRole.PATIENT) {
+        andConditions.push({
+            patient: {
+                email: user.email
+            }
+        })
+    }
+    else if (user.role === UserRole.DOCTOR) {
+        andConditions.push({
+            doctor: {
+                email: user.email
+            }
+        })
+    }
+
+    if (Object.keys(filtersData).length > 0) {
+        const filterConditions = Object.keys(filtersData).map(key => ({
+            [key]: {
+                equals: (filtersData as any)[key]
+            }
+        }))
+
+        andConditions.push(...filterConditions)
+    }
+
+    const whereConditions: Prisma.AppointmentWhereInput = andConditions.length > 0 ? { AND: andConditions } : {}
+
+    const result = await prisma.appointment.findMany({
+        where: whereConditions,
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        },
+        include: user.role === UserRole.DOCTOR ?
+            { patient: true } : { doctor: true }
+
+    });
+
+    const total = await prisma.appointment.count({
+        where: whereConditions
+    })
+
+    return {
+        meta: {
+            total,
+            limit,
+            page
+        },
+        data: result
+    }
+
+}
+
+export const AppointmentService = {
+    getMyAppointment
+};
+```
+
+##  62-8 Updating Appointment Status – Part 1, 62-9 Updating Appointment Status – Part 2
+
+- appointment.routes.ts 
+
+```ts 
+import express from "express";
+import { AppointmentController } from "./appointment.controller";
+import auth from "../../middlewares/auth";
+import { UserRole } from "@prisma/client";
+
+const router = express.Router();
+
+
+router.patch("/status/:id",
+    auth(UserRole.ADMIN, UserRole.DOCTOR),
+    AppointmentController.updateAppointmentStatus
+)
+
+
+export const AppointmentRoutes = router;
+```
+- appointment.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { AppointmentService } from "./appointment.service";
+import sendResponse from "../../shared/sendResponse";
+import { IJWTPayload } from "../../types/common";
+import pick from "../../helper/pick";
+
+
+const updateAppointmentStatus = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const { id } = req.params;
+    const { status } = req.body
+
+    const user = req.user
+    const result = await AppointmentService.updateAppointmentStatus(id, status, user as IJWTPayload);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Appointment Updated successfully!",
+        data: result
+    })
+});
+
+
+export const AppointmentController = {
+    updateAppointmentStatus
+}
+```
+- appointment.service.ts 
+
+```ts 
+import { AppointmentStatus, Prisma, UserRole } from "@prisma/client";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { stripe } from "../../helper/stripe";
+import { prisma } from "../../shared/prisma";
+import { IJWTPayload } from "../../types/common";
+import { v4 as uuidv4 } from 'uuid';
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status';
+
+const updateAppointmentStatus = async (appointmentId: string, status: AppointmentStatus, user: IJWTPayload) => {
+    const appointmentData = await prisma.appointment.findUniqueOrThrow({
+        where: {
+            id: appointmentId
+        },
+        include: {
+            doctor: true
+        }
+    });
+
+    if (user.role === UserRole.DOCTOR) {
+        if (!(user.email === appointmentData.doctor.email)) {
+            throw new ApiError(httpStatus.BAD_REQUEST, "This is not your appointment")
+        }
+    }
+
+    return await prisma.appointment.update({
+        where: {
+            id: appointmentId
+        },
+        data: {
+            status
+        }
+    })
+}
+
+export const AppointmentService = {
+
+    updateAppointmentStatus
+};
+```
+
+
+## 62-10 Creating Prescription for a Completed Appointment
+
+- prescription.routes.ts
+
+```ts 
+import { UserRole } from '@prisma/client';
+import express from 'express';
+import auth from '../../middlewares/auth';
+import { PrescriptionController } from './prescription.controller';
+const router = express.Router();
+
+
+router.post(
+    "/",
+    auth(UserRole.DOCTOR),
+    PrescriptionController.createPrescription
+);
+
+export const PrescriptionRoutes = router;
+```
+- prescription.controller.ts
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { IJWTPayload } from "../../types/common";
+import sendResponse from "../../shared/sendResponse";
+import { PrescriptionService } from "./prescription.service";
+
+const createPrescription = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const result = await PrescriptionService.createPrescription(user as IJWTPayload, req.body)
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "Prescription created successfully!",
+        data: result
+    })
+})
+
+
+export const PrescriptionController = {
+    createPrescription
+}
+```
+- prescription.service.ts
+
+```ts 
+import { AppointmentStatus, PaymentStatus, Prescription, UserRole } from "@prisma/client";
+import { IJWTPayload } from "../../types/common";
+import { prisma } from "../../shared/prisma";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status'
+
+const createPrescription = async (user: IJWTPayload, payload: Partial<Prescription>) => {
+    const appointmentData = await prisma.appointment.findUniqueOrThrow({
+        where: {
+            id: payload.appointmentId,
+            status: AppointmentStatus.COMPLETED,
+            paymentStatus: PaymentStatus.PAID
+        },
+        include: {
+            doctor: true
+        }
+    })
+
+    if (user.role === UserRole.DOCTOR) {
+        if (!(user.email === appointmentData.doctor.email))
+            throw new ApiError(httpStatus.BAD_REQUEST, "This is not your appointment")
+    }
+
+    const result = await prisma.prescription.create({
+        data: {
+            appointmentId: appointmentData.id,
+            doctorId: appointmentData.doctorId,
+            patientId: appointmentData.patientId,
+            instructions: payload.instructions as string,
+            followUpDate: payload.followUpDate || null
+        },
+        include: {
+            patient: true
+        }
+    });
+
+    return result;
+}
+
+// get my prescription as a patient
+
+export const PrescriptionService = {
+    createPrescription
+}
+```
