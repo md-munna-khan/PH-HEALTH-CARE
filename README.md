@@ -86,3 +86,102 @@ export const ReviewService = {
     insertIntoDB
 } 
 ```
+
+## 63-2 Creating Review – Part 2
+
+- user.prisma
+
+```prisma 
+model Doctor {
+    id                  String   @id @default(uuid())
+    name                String
+    email               String   @unique
+    profilePhoto        String?
+    contactNumber       String
+    address             String
+    registrationNumber  String
+    experience          Int      @default(0)
+    gender              Gender
+    appointmentFee      Int
+    qualification       String
+    currentWorkingPlace String
+    designation         String
+    averageRating       Float    @default(0.0) // average rating added
+    isDeleted           Boolean  @default(false)
+    createdAt           DateTime @default(now())
+    updatedAt           DateTime @updatedAt
+
+    user User @relation(fields: [email], references: [email])
+
+    doctorSchedules   DoctorSchedules[]
+    doctorSpecialties DoctorSpecialties[]
+    appointments      Appointment[]
+    prescriptions     Prescription[]
+    reviews           Review[]
+
+    @@map("doctors")
+}
+```
+- review.service.ts 
+
+```ts 
+import ApiError from "../../errors/ApiError"
+import { prisma } from "../../shared/prisma"
+import { IJWTPayload } from "../../types/common"
+import httpStatus from 'http-status';
+
+const insertIntoDB = async (user: IJWTPayload, payload: any) => {
+    const patientData = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user.email
+        }
+    })
+
+    const appointmentData = await prisma.appointment.findFirstOrThrow({
+        where: {
+            id: payload.appointmentId
+        }
+    })
+
+    if (patientData.id !== appointmentData.patientId) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "This is Not Your Appointment")
+    }
+
+    return await prisma.$transaction(async (tnx) => {
+        const result = await tnx.review.create({
+            data: {
+                appointmentId: appointmentData.id,
+                doctorId: appointmentData.doctorId,
+                patientId: appointmentData.patientId,
+                rating: payload.rating,
+                comment: payload.comment
+            }
+        });
+
+        const avgRating = await tnx.review.aggregate({
+            _avg: {
+                rating: true
+            },
+            where: {
+                doctorId: appointmentData.doctorId
+            }
+        })
+
+        await tnx.doctor.update({
+            where: {
+                id: appointmentData.doctorId
+            },
+            data: {
+                averageRating: avgRating._avg.rating as number
+            }
+        })
+
+        return result
+    })
+
+}
+
+export const ReviewService = {
+    insertIntoDB
+} 
+```
