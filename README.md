@@ -306,3 +306,188 @@ const getByIdFromDB = async (id: string): Promise<Doctor | null> => {
 };
 
 ```
+## 63-4 Creating or Updating Patient Health Data – Part 1, 63-5 Creating or Updating Patient Health Data – Part 2
+```prisma
+model PatientHealthData {
+    id                  String        @id @default(uuid())
+    patientId           String        @unique
+    patient             Patient       @relation(fields: [patientId], references: [id])
+    gender              Gender
+    dateOfBirth         String
+    bloodGroup          BloodGroup
+    hasAllergies        Boolean?      @default(false)
+    hasDiabetes         Boolean?      @default(false)
+    height              String
+    weight              String
+    smokingStatus       Boolean?      @default(false)
+    dietaryPreferences  String?
+    pregnancyStatus     Boolean?      @default(false)
+    mentalHealthHistory String?
+    immunizationStatus  String?
+    hasPastSurgeries    Boolean?      @default(false)
+    recentAnxiety       Boolean?      @default(false)
+    recentDepression    Boolean?      @default(false)
+    maritalStatus       MaritalStatus @default(UNMARRIED)
+    createdAt           DateTime      @default(now())
+    updatedAt           DateTime      @updatedAt
+
+    @@map("patient_health_datas")
+}
+
+model MedicalReport {
+    id         String   @id @default(uuid())
+    patientId  String
+    patient    Patient  @relation(fields: [patientId], references: [id])
+    reportName String
+    reportLink String
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@map("madical_reports")
+}
+
+```
+
+- if we are planning to do something like if we have field that will create data if not exist and if exists that will update we will use `upsert`
+
+- patient.route.ts 
+```ts
+import express from 'express';
+import { PatientController } from './patient.controller';
+import auth from '../../middlewares/auth';
+import { UserRole } from '@prisma/client';
+
+const router = express.Router();
+
+router.patch(
+    '/',
+    auth(UserRole.PATIENT),
+    PatientController.updateIntoDB
+);
+
+
+
+export const PatientRoutes = router;
+```
+
+- patient.controller.ts 
+
+```ts 
+import { Request, Response } from 'express';
+import httpStatus from 'http-status';
+import catchAsync from '../../shared/catchAsync';
+import { patientFilterableFields } from './patient.constant';
+import pick from '../../helper/pick';
+import { PatientService } from './patient.service';
+import sendResponse from '../../shared/sendResponse';
+import { IJWTPayload } from '../../types/common';
+
+const updateIntoDB = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const result = await PatientService.updateIntoDB(user as IJWTPayload, req.body);
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: 'Patient updated successfully',
+        data: result,
+    });
+});
+
+export const PatientController = {
+    updateIntoDB
+};
+```
+- patient.service.ts 
+
+```ts 
+import { Patient, Prisma, UserStatus } from '@prisma/client';
+import { IPatientFilterRequest } from './patient.interface';
+import { IOptions, paginationHelper } from '../../helper/paginationHelper';
+import { patientSearchableFields } from './patient.constant';
+import { prisma } from '../../shared/prisma';
+import { IJWTPayload } from '../../types/common';
+
+
+
+// PatientHealthData, MedicalReport, patient
+
+const updateIntoDB = async (user: IJWTPayload, payload: any) => {
+    const { medicalReport, patientHealthData, ...patientData } = payload;
+
+    const patientInfo = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user.email,
+            isDeleted: false
+        }
+    });
+
+    return await prisma.$transaction(async (tnx) => {
+        await tnx.patient.update({
+            where: {
+                id: patientInfo.id
+            },
+            data: patientData
+        })
+
+        if (patientHealthData) {
+            await tnx.patientHealthData.upsert({
+                where: {
+                    patientId: patientInfo.id
+                },
+                update: patientHealthData,
+                create: {
+                    ...patientHealthData,
+                    patientId: patientInfo.id
+                }
+            })
+        }
+
+        if (medicalReport) {
+            await tnx.medicalReport.create({
+                data: {
+                    ...medicalReport,
+                    patientId: patientInfo.id
+                }
+            })
+        }
+
+        const result = await tnx.patient.findUnique({
+            where: {
+                id: patientInfo.id
+            },
+            include: {
+                patientHealthData: true,
+                medicalReports: true
+            }
+        })
+        return result;
+    })
+
+
+
+}
+
+export const PatientService = {
+    updateIntoDB
+};
+```
+
+- postman 
+
+```json 
+{
+    "name" : "Sazid", // update
+
+    "medicalReport" :{ // create
+        "reportName" : "Past Surgery 2",
+        "reportLink" : "reportLink2"
+    },
+    "patientHealthData" :{ // create or update
+        "gender" : "MALE",
+        "dateOfBirth" : "20-01-1976",
+        "bloodGroup" : "B_POSITIVE",
+        "height" : "5 feet 8 inch",
+        "weight" : "76kg"
+    }
+}
+```
