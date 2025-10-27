@@ -7,6 +7,7 @@ import { SpecialtiesRoutes } from '../modules/specialties/specialties.routes';
 import { DoctorRoutes } from '../modules/doctor/doctor.routes';
 import { AppointmentRoutes } from '../modules/appointment/appointmnet.routes';
 import { PrescriptionRoutes } from '../modules/prescription/prescription.routes';
+import { ReviewRoutes } from '../modules/review/review.routes';
 
 
 
@@ -47,6 +48,10 @@ const moduleRoutes = [
     {
           path: '/prescription',
         route: PrescriptionRoutes
+    },
+    {
+          path: '/review',
+        route: ReviewRoutes
     },
 ];
 

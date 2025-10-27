@@ -39,7 +39,9 @@ const result = await prisma.$transaction(async(tnx)=>{
         scheduleId:payload.scheduleId,
         videoCallingId
     }
+  
  })
+ 
  await tnx.doctorSchedules.update({
 where:{
 doctorId_scheduleId:{
@@ -51,6 +53,7 @@ data:{
     isBooked:true
 }
  })
+
 const transactionId = uuidv4();
 const paymentData= await tnx.payment.create({
     data:{
@@ -85,8 +88,13 @@ const paymentData= await tnx.payment.create({
         console.log(session)
  return {paymentUrl:session.url}
 })
+
 return result
 };
+
+
+
+
 const getMyAppointment = async (user: IJWTPayload, filters: any, options: IOptions) => {
     const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
     const { ...filtersData } = filters;

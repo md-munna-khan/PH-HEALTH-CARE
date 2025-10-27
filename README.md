@@ -185,3 +185,124 @@ export const ReviewService = {
     insertIntoDB
 } 
 ```
+## 63-3 Implementing Review Creation & Including Reviews in Data Retrieval
+
+- postman 
+
+```json 
+{
+    "appointmentId": "d37c4dda-be78-446a-b4d8-dbdad9f05bac",
+    "rating": 4.8,
+    "comment": "The Doctor is Bad"
+}
+```
+
+- showing doctor reviews
+
+- doctor.service.ts 
+
+```ts 
+const getAllFromDB = async (filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+    const { searchTerm, specialties, ...filterData } = filters;
+
+    const andConditions: Prisma.DoctorWhereInput[] = [];
+
+    if (searchTerm) {
+        andConditions.push({
+            OR: doctorSearchableFields.map((field) => ({
+                [field]: {
+                    contains: searchTerm,
+                    mode: "insensitive"
+                }
+            }))
+        })
+    }
+
+    // "", "medicine"
+    if (specialties && specialties.length > 0) {
+        andConditions.push({
+            doctorSpecialties: {
+                some: {
+                    specialities: {
+                        title: {
+                            contains: specialties,
+                            mode: "insensitive"
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    if (Object.keys(filterData).length > 0) {
+        const filterConditions = Object.keys(filterData).map((key) => ({
+            [key]: {
+                equals: (filterData as any)[key]
+            }
+        }))
+
+        andConditions.push(...filterConditions)
+    }
+
+    const whereConditions: Prisma.DoctorWhereInput = andConditions.length > 0 ? { AND: andConditions } : {};
+
+    const result = await prisma.doctor.findMany({
+        where: whereConditions,
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        },
+        include: {
+            doctorSpecialties: {
+                include: {
+                    specialities: true
+                }
+            },
+            reviews: {
+                select: {
+                    rating: true
+                }
+            }
+        }
+    });
+
+    const total = await prisma.doctor.count({
+        where: whereConditions
+    })
+
+    return {
+        meta: {
+            total,
+            page,
+            limit
+        },
+        data: result
+    }
+}
+
+const getByIdFromDB = async (id: string): Promise<Doctor | null> => {
+    const result = await prisma.doctor.findUnique({
+        where: {
+            id,
+            isDeleted: false,
+        },
+        include: {
+            doctorSpecialties: {
+                include: {
+                    specialities: true,
+                },
+            },
+            doctorSchedules: {
+                include: {
+                    schedule: true
+                }
+            },
+            reviews: true
+        },
+    });
+    return result;
+};
+
+```

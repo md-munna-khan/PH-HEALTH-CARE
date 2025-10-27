@@ -41,6 +41,7 @@ model Doctor {
     gender              Gender
     appointmentFee      Int
     qualification       String
+    averageRating       Float @default(0.0)
     currentWorkingPlace String
     designation         String
     isDeleted           Boolean  @default(false)
@@ -51,6 +52,8 @@ model Doctor {
     doctorSpecialties DoctorSpecialties[]
     appointments  Appointment[]
     prescriptions Prescription[]
+    
+    reviews           Review[]
     @@map("doctors")
 }
 
@@ -65,7 +68,11 @@ model Patient {
     updatedAt    DateTime @updatedAt
 
     user User @relation(fields: [email], references: [email])
-      appointments  Appointment[]
-  prescriptions Prescription[]
+    appointments  Appointment[]
+    prescriptions Prescription[]
+    patientHealthData PatientHealthData?
+    medicalReports    MedicalReport[]
+    reviews           Review[]
+
     @@map("patients")
 }

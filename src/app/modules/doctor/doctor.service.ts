@@ -12,6 +12,7 @@ import { openai } from "../../helper/open-router";
 import { extractJsonFromMessage } from "../../helper/extracrJsonFromMessage";
 
 
+
 const getAllFromDB = async (filters: any, options: IOptions) => {
     const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
     const { searchTerm, specialties, ...filterData } = filters;
@@ -69,6 +70,11 @@ const getAllFromDB = async (filters: any, options: IOptions) => {
                 include: {
                     specialities: true
                 }
+            },
+            reviews:{
+       select:{
+       rating:true
+   }
             }
         }
     });
@@ -160,7 +166,8 @@ const getByIdFromDB = async (id: string): Promise<Doctor | null> => {
                 include: {
                     schedule: true
                 }
-            }
+            },
+            reviews:true
         },
     });
     return result;
