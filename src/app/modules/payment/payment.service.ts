@@ -48,9 +48,7 @@ const handleStripeWebhookEvent = async (event: Stripe.Event) => {
                 data: {
                     // Stripe session.payment_status is usually 'paid' or 'unpaid'
                     paymentStatus:
-                        session.payment_status === "paid"
-                            ? PaymentStatus.PAID
-                            : PaymentStatus.UNPAID,
+                        session.payment_status === "paid" ? PaymentStatus.PAID: PaymentStatus.UNPAID,
                 },
             });
 
@@ -64,9 +62,7 @@ const handleStripeWebhookEvent = async (event: Stripe.Event) => {
                 },
                 data: {
                     status:
-                        session.payment_status === "paid"
-                            ? PaymentStatus.PAID
-                            : PaymentStatus.UNPAID,
+                        session.payment_status === "paid" ? PaymentStatus.PAID : PaymentStatus.UNPAID,
 
                     // Save the entire Stripe session object for debugging,
                     // reconciliation, or refund processing in the future.
@@ -97,3 +93,5 @@ const handleStripeWebhookEvent = async (event: Stripe.Event) => {
 export const PaymentService = {
     handleStripeWebhookEvent,
 };
+
+
