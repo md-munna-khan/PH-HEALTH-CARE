@@ -7,7 +7,7 @@ import ApiError from "../../errors/ApiError";
 import httpStatus from "http-status"
 import config from "../../../config";
 
-import { emit } from "process";
+
 import emailSender from "./emailSender";
 
 const login = async (payload: { email: string, password: string }) => {
@@ -160,26 +160,19 @@ const resetPassword = async (token: string, payload: { id: string, password: str
 };
 
 const getMe = async (session: any) => {
-    const accessToken = session.accessToken;
-    const decodedData = jwtHelper.verifyToken(accessToken, config.jwt.jwt_secret as Secret);
+   const accessToken = session.accessToken;
+   const decodedData = jwtHelper.verifyToken(accessToken,config.jwt.jwt_secret as Secret)
 
-    const userData = await prisma.user.findUniqueOrThrow({
-        where: {
-            email: decodedData.email,
-            status: UserStatus.ACTIVE
-        }
-    })
-
-    const { id, email, role, needPasswordChange, status } = userData;
-
-    return {
-        id,
-        email,
-        role,
-        needPasswordChange,
-        status
+const userData = await prisma.user.findUniqueOrThrow({
+    where:{
+        email:decodedData.email,
+        status:UserStatus.ACTIVE
     }
-
+})
+const {id ,email,needPasswordChange,status,role}=userData
+return {
+    id ,email,needPasswordChange,status,role
+}
 }
 
 export const AuthService = {
