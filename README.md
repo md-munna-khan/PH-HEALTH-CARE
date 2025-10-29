@@ -1167,3 +1167,94 @@ export const UserService = {
 }
 ```
 
+
+
+## 63-10 Updating Profile Status & Finalizing the Module
+
+- user.routes.ts 
+
+```ts 
+import express, { NextFunction, Request, Response } from 'express'
+import { UserController } from './user.controller';
+import { fileUploader } from '../../helper/fileUploader';
+import { UserValidation } from './user.validation';
+import { UserRole } from '@prisma/client';
+import auth from '../../middlewares/auth';
+
+
+const router = express.Router();
+
+router.patch(
+    '/:id/status',
+    auth(UserRole.ADMIN),
+    UserController.changeProfileStatus
+);
+
+export const userRoutes = router;
+```
+- user.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { UserService } from "./user.service";
+import sendResponse from "../../shared/sendResponse";
+import pick from "../../helper/pick";
+import { userFilterableFields } from "./user.constant";
+import { IJWTPayload } from "../../types/common";
+import httpStatus from "http-status";
+
+
+const changeProfileStatus = catchAsync(async (req: Request, res: Response) => {
+
+    const { id } = req.params;
+    const result = await UserService.changeProfileStatus(id, req.body)
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Users profile status changed!",
+        data: result
+    })
+});
+
+export const UserController = {
+
+    changeProfileStatus
+}
+```
+- user.service.ts 
+
+```ts 
+import { Request } from "express";
+import { prisma } from "../../shared/prisma";
+import bcrypt from "bcryptjs";
+import { fileUploader } from "../../helper/fileUploader";
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { Admin, Doctor, Prisma, UserRole, UserStatus } from "@prisma/client";
+import { userSearchableFields } from "./user.constant";
+import { IJWTPayload } from "../../types/common";
+
+
+
+const changeProfileStatus = async (id: string, payload: { status: UserStatus }) => {
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            id
+        }
+    })
+
+    const updateUserStatus = await prisma.user.update({
+        where: {
+            id
+        },
+        data: payload
+    })
+
+    return updateUserStatus;
+};
+
+export const UserService = {
+    changeProfileStatus
+}
+```
