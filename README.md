@@ -1,624 +1,216 @@
-# USER-RETRIEVAL-QUERY-OPTIMIZATION-AND-AUTHENTICATION-MIDDLEWARE
-## 58-1 Fetch All Users with Pagination
+# Reviews-Patient-Health-data-account-management
+GitHub Repo:  https://github.com/Apollo-Level2-Web-Dev/ph-health-care-server/tree/part-8
 
-- user.routes.ts
 
-```ts
-import express, { NextFunction, Request, Response } from "express";
-import { UserController } from "./user.controller";
 
-const router = express.Router();
+ERD: https://drive.google.com/file/d/1x7Bi_oiIAUjNGINIz3rUYaXUUBvAduEs/view?usp=sharing
 
-router.get("/", UserController.getAllFromDB);
+## 63-1 Designing Review, Patient Health Data, and Medical Report Schemas & Creating Review
 
-export const UserRoutes = router;
-```
+![alt text](image-21.png)
 
-- user.controller.ts
-
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  const { page, limit } = req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
-
-```
-{{URL}}/user?limit=11&page=1
-```
-
-```ts
-import bcrypt from "bcryptjs";
-
-const getAllFromDB = async ({
-  page,
-  limit,
-}: {
-  page: number;
-  limit: number;
-}) => {
-  const skip = (page - 1) * limit;
-  const result = await prisma.user.findMany({
-    skip,
-    take: limit,
-  });
-  return result;
-};
-
-export const UserService = {
-  getAllFromDB,
-};
-```
-
-## 58-2 Fetch All Users with Searching and Sorting
-
-```
-{{URL}}/user?sortBy=createdAt&sortOrder=desc
-```
-
-- user.controller.ts
-
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  const { page, limit, searchTerm, sortBy, sortOrder } = req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-    searchTerm,
-    sortBy,
-    sortOrder,
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
-
-```ts
-import bcrypt from "bcryptjs";
-import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-
-const getAllFromDB = async ({
-  page,
-  limit,
-  searchTerm,
-  sortBy,
-  sortOrder,
-}: {
-  page: number;
-  limit: number;
-  searchTerm?: any;
-  sortBy: any;
-  sortOrder: any;
-}) => {
-  const pageNumber = page || 1;
-  const limitNumber = limit || 10;
-
-  const skip = (pageNumber - 1) * limitNumber;
-  const result = await prisma.user.findMany({
-    skip,
-    take: limitNumber,
-    where: {
-      email: {
-        contains: searchTerm,
-        mode: "insensitive",
-      },
-    },
-    orderBy:
-      sortBy && sortOrder
-        ? {
-            [sortBy]: sortOrder,
-          }
-        : {
-            createdAt: "asc",
-          },
-  });
-  return result;
-};
-
-export const UserService = {
-  getAllFromDB,
-};
-```
-
-## 58-3 Fetch All Users with Filtering, 58-4 Implement Pick Function for Query Parameters
-
-- helpers -> pick.ts
-
-```ts
-const pick = <T extends Record<string, unknown>, K extends keyof T>(
-  obj: T,
-  keys: K[]
-): Partial<T> => {
-  console.log({ obj, keys });
-
-  const finalObject: Partial<T> = {};
-
-  for (const key of keys) {
-    if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObject[key] = obj[key];
-    }
-  }
-
-  // Object.hasOwnProperty.call(obj, key) checks safely if the obj has its own property key. Using call() avoids issues if obj has a custom hasOwnProperty method or if it was shadowed.Also ensures obj is not null or undefined.
-
-  console.log(finalObject);
-
-  return finalObject;
-};
-
-export default pick;
-```
-
-```ts
-<T extends Record<string, unknown>>
-
-T is a generic type parameter representing the type of the input object.
-
-The constraint extends Record<string, unknown> means:
-
-T must be an object whose keys are strings, and whose values can be anything (unknown).
-
-K extends keyof T
-
-K is another generic type parameter.
-
-keyof T means all the keys of the object T.
-
-So K must be one (or more) of the keys in T.
-
-Parameters:
-
-obj: T → the object you want to extract properties from.
-
-keys: K[] → an array of property names (keys) you want to "pick" from obj.
-
-Return type:
-
-```
-
-- user.controller.ts
-
-```ts
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-  // random -> fields , searchTerm --> searching, filtering
-
-  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-
-  const { page, limit, searchTerm, sortBy, sortOrder, role, status } =
-    req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-    searchTerm,
-    sortBy,
-    sortOrder,
-    role,
-    status,
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-```
-
-
-## 58-5 Create Pagination Helper Function, 58-6 Apply Prisma Where Conditions for User Data Retrieval, 58-7 Overview of Metadata, Searching, Sorting, Filtering & Pagination
-
-- helper -> pick.ts
-
-```ts
-const pick = <T extends Record<string, unknown>, K extends keyof T>(
-  obj: T,
-  keys: K[]
-): Partial<T> => {
-  console.log({ obj, keys });
-
-  const finalObject: Partial<T> = {};
-
-  for (const key of keys) {
-    if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObject[key] = obj[key];
-    }
-  }
-
-  console.log(finalObject);
-
-  return finalObject;
-};
-
-export default pick;
-```
-
-- helper -> paginationHelper.ts
-
-```ts
-type IOptions = {
-  page?: string | number;
-  limit?: string | number;
-  sortBy?: string;
-  sortOrder?: string;
-};
-
-type IOptionsResult = {
-  page: number;
-  limit: number;
-  skip: number;
-  sortBy: string;
-  sortOrder: string;
-};
-const calculatePagination = (options: IOptions): IOptionsResult => {
-  const page: number = Number(options.page) || 1;
-  const limit: number = Number(options.limit) || 10;
-  const skip: number = Number(page - 1) * limit;
-
-  const sortBy: string = options.sortBy || "createdAt";
-  const sortOrder: string = options.sortOrder || "desc";
-
-  return {
-    page,
-    limit,
-    skip,
-    sortBy,
-    sortOrder,
-  };
-};
-
-export const paginationHelper = {
-  calculatePagination,
-};
-```
-
-- user.constant.ts
-
-```ts
-export const userSearchableFields = ["email"];
-export const userFilterableField = ["status", "role", "email", "searchTerm"];
-```
-
-- user.controller.ts
-
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-import pick from "../../helper/pick";
-import { userFilterableField } from "./user.contant";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-  // random -> fields , searchTerm --> searching, filtering
-
-  // const filters = pick(req.query, ["status", "role", "email", "searchTerm"])
-
-  // const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"])
-
-  const filters = pick(req.query, userFilterableField);
-
-  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-
-  // const { page, limit, searchTerm, sortBy, sortOrder, role, status } = req.query
-  const result = await UserService.getAllFromDB(filters, options);
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    meta: result.meta,
-    data: result.data,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
-
-```ts
-import bcrypt from "bcryptjs";
-import { createPatientInput } from "./user.interface";
-import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-import { fileUploader } from "../../helper/fileUploader";
-import { Admin, Doctor, Prisma, UserRole } from "@prisma/client";
-import { paginationHelper } from "../../helper/paginationHelper";
-import { userSearchableFields } from "./user.contant";
-
-const getAllFromDB = async (params: any, options: IOptions) => {
-    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
-    const { searchTerm, ...filterData } = params;
-
-    const andConditions: Prisma.UserWhereInput[] = [];
-
-    if (searchTerm) {
-        andConditions.push({
-            OR: userSearchableFields.map(field => ({
-                [field]: {
-                    contains: searchTerm,
-                    mode: "insensitive"
-                }
-            }))
-        })
-    }
-
-    if (Object.keys(filterData).length > 0) {
-        andConditions.push({
-            AND: Object.keys(filterData).map(key => ({
-                [key]: {
-                    equals: (filterData as any)[key]
-                }
-            }))
-        })
-    }
-
-    const whereConditions: Prisma.UserWhereInput = andConditions.length > 0 ? {
-        AND: andConditions
-    } : {}
-
-    const result = await prisma.user.findMany({
-        skip,
-        take: limit,
-
-        where: whereConditions,
-        orderBy: {
-            [sortBy]: sortOrder
-        }
-    });
-
-    const total = await prisma.user.count({
-        where: whereConditions
-    });
-    return {
-        meta: {
-            page,
-            limit,
-            total
-        },
-        data: result
-    };
-}
-
-export const UserService = {
-  getAllFromDB,
-};
-```
-## 58-8 Implement Authentication Middleware, 58-9 Debug and Fix Issues in Auth Middleware, 58-10 Final Fixes and Full Module Overview
-- we will verify role from the decoded token and then we will let them see all users 
-- install cookie parser 
-
-```
-npm i cookie-parser
-```
-
-```
-npm i --save-dev @types/cookie-parser
-```
-
-- app.ts use of cookie parser 
+- review.routes.ts 
 
 ```ts 
-import express, { Application, NextFunction, Request, Response } from 'express';
-import cors from 'cors';
-import globalErrorHandler from './app/middlewares/globalErrorHandler';
-import notFound from './app/middlewares/notFound';
-import config from './config';
-import cookieParser from 'cookie-parser'
-
-import router from './app/routes';
-
-const app: Application = express();
-app.use(cors({
-    origin: 'http://localhost:3000',
-    credentials: true
-}));
-
-//parser
-app.use(express.json());
-app.use(cookieParser())
-app.use(express.urlencoded({ extended: true }));
-
-app.use("/api/v1", router)
-
-
-app.get('/', (req: Request, res: Response) => {
-    res.send({
-        message: "Server is running..",
-        environment: config.node_env,
-        uptime: process.uptime().toFixed(2) + " sec",
-        timeStamp: new Date().toISOString()
-    })
-});
-
-
-app.use(globalErrorHandler);
-
-app.use(notFound);
-
-export default app;
-```
-- middlewares -> auth.ts 
-
-```ts 
-import { NextFunction, Request, Response } from "express"
-import { jwtHelper } from "../helper/jwtHelper";
-
-const auth = (...roles: string[]) => {
-    return async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
-        try {
-            const token = req.cookies.accessToken;
-
-            if (!token) {
-                throw new Error("You are Not Authorized!")
-            }
-
-            const verifyUser = jwtHelper.verifyToken(token, "abcd")
-
-            req.user = verifyUser
-
-            if (roles.length && !roles.includes(verifyUser.role)) {
-                throw new Error("You are Not Authorized!")
-            }
-
-            next()
-
-        } catch (error) {
-            next(error)
-        }
-    }
-}
-
-export default auth
-```
-- helper -> jwtHelper.ts 
-
-```ts 
-import jwt, { JwtPayload, Secret, SignOptions } from "jsonwebtoken";
-const generateToken = (payload: any, secret: Secret, expiresIn: string) => {
-    //  generate access token 
-    const token = jwt.sign(payload, secret, {
-        algorithm: "HS256",
-        expiresIn
-    } as SignOptions
-    )
-
-    return token
-}
-
-const verifyToken = (token: string, secret: Secret) => {
-    return jwt.verify(token, secret) as JwtPayload
-}
-
-export const jwtHelper = {
-    generateToken,
-    verifyToken
-}
-```
-- user.route.ts 
-
-```ts 
-import express, { NextFunction, Request, Response } from 'express'
-import { UserController } from './user.controller'
-import { fileUploader } from '../../helper/fileUploader'
-import { UserValidation } from './user.validation'
-import { UserRole } from '@prisma/client'
-import auth from '../../middlewares/auth'
-
-
+import { UserRole } from '@prisma/client';
+import express from 'express';
+import auth from '../../middlewares/auth';
+import { ReviewController } from './review.controller';
 const router = express.Router()
 
-router.get("/", auth(UserRole.ADMIN), UserController.getAllFromDB)
+
+router.post("/",
+    auth(UserRole.PATIENT),
+    ReviewController.insertIntoDB
+)
+
+export const ReviewRoutes = router;
 
 
-
-export const UserRoutes = router 
 ```
-- user.controller.ts 
+- review.controller.ts 
 
 ```ts 
 import { Request, Response } from "express";
 import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
+import { IJWTPayload } from "../../types/common";
 import sendResponse from "../../shared/sendResponse";
-import pick from "../../helper/pick";
-import { userFilterableFields } from "./user.constant";
+import httpStatus from 'http-status';
+import { ReviewService } from "./review.service";
 
+const insertIntoDB = catchAsync(async(req:Request &{user?:IJWTPayload}, res:Response) =>{
+    const user = req.user
+    const result = await ReviewService.insertIntoDB(user as IJWTPayload, req.body)
 
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-    // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-    // random -> fields , searchTerm --> searching, filtering 
-
-    // const filters = pick(req.query, ["status", "role", "email", "searchTerm"])
-
-    // const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"])
-
-    const filters = pick(req.query, userFilterableFields) // searching , filtering
-    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]) // pagination and sorting
-
-
-
-
-    // const { page, limit, searchTerm, sortBy, sortOrder, role, status } = req.query
-    const result = await UserService.getAllFromDB(filters, options)
     sendResponse(res, {
-        statusCode: 200,
+        statusCode : httpStatus.OK,
         success: true,
-        message: "User Retrieved Successfully",
-        meta: result.meta,
-        data: result.data
+        message : "Review Created Successfully",
+        data : result
     })
 })
 
-
-
-export const UserController = {
-    getAllFromDB
-}
+export const ReviewController ={
+    insertIntoDB
+} 
 ```
-- user.service.ts 
+- review.service.ts 
 
 ```ts 
-import bcrypt from "bcryptjs";
-import { createPatientInput } from "./user.interface";
-import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-import { fileUploader } from "../../helper/fileUploader";
-import { Admin, Doctor, Prisma, UserRole } from "@prisma/client";
-import { IOptions, paginationHelper } from "../../helper/paginationHelper";
-import { userSearchableFields } from "./user.constant";
+import ApiError from "../../errors/ApiError"
+import { prisma } from "../../shared/prisma"
+import { IJWTPayload } from "../../types/common"
+import httpStatus from 'http-status';
 
+const insertIntoDB = async (user: IJWTPayload, payload: any) => {
+    const patientData = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user.email
+        }
+    })
 
+    const appointmentData = await prisma.appointment.findFirstOrThrow({
+        where: {
+            id: payload.appointmentId
+        }
+    })
 
-const getAllFromDB = async (params: any, options: IOptions) => {
-    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
-    const { searchTerm, ...filterData } = params;
+    if (patientData.id !== appointmentData.patientId) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "This is Not Your Appointment")
+    }
 
-    const andConditions: Prisma.UserWhereInput[] = [];
+    
+}
+
+export const ReviewService = {
+    insertIntoDB
+} 
+```
+
+## 63-2 Creating Review – Part 2
+
+- user.prisma
+
+```prisma 
+model Doctor {
+    id                  String   @id @default(uuid())
+    name                String
+    email               String   @unique
+    profilePhoto        String?
+    contactNumber       String
+    address             String
+    registrationNumber  String
+    experience          Int      @default(0)
+    gender              Gender
+    appointmentFee      Int
+    qualification       String
+    currentWorkingPlace String
+    designation         String
+    averageRating       Float    @default(0.0) // average rating added
+    isDeleted           Boolean  @default(false)
+    createdAt           DateTime @default(now())
+    updatedAt           DateTime @updatedAt
+
+    user User @relation(fields: [email], references: [email])
+
+    doctorSchedules   DoctorSchedules[]
+    doctorSpecialties DoctorSpecialties[]
+    appointments      Appointment[]
+    prescriptions     Prescription[]
+    reviews           Review[]
+
+    @@map("doctors")
+}
+```
+- review.service.ts 
+
+```ts 
+import ApiError from "../../errors/ApiError"
+import { prisma } from "../../shared/prisma"
+import { IJWTPayload } from "../../types/common"
+import httpStatus from 'http-status';
+
+const insertIntoDB = async (user: IJWTPayload, payload: any) => {
+    const patientData = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user.email
+        }
+    })
+
+    const appointmentData = await prisma.appointment.findFirstOrThrow({
+        where: {
+            id: payload.appointmentId
+        }
+    })
+
+    if (patientData.id !== appointmentData.patientId) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "This is Not Your Appointment")
+    }
+
+    return await prisma.$transaction(async (tnx) => {
+        const result = await tnx.review.create({
+            data: {
+                appointmentId: appointmentData.id,
+                doctorId: appointmentData.doctorId,
+                patientId: appointmentData.patientId,
+                rating: payload.rating,
+                comment: payload.comment
+            }
+        });
+
+        const avgRating = await tnx.review.aggregate({
+            _avg: {
+                rating: true
+            },
+            where: {
+                doctorId: appointmentData.doctorId
+            }
+        })
+
+        await tnx.doctor.update({
+            where: {
+                id: appointmentData.doctorId
+            },
+            data: {
+                averageRating: avgRating._avg.rating as number
+            }
+        })
+
+        return result
+    })
+
+}
+
+export const ReviewService = {
+    insertIntoDB
+} 
+```
+## 63-3 Implementing Review Creation & Including Reviews in Data Retrieval
+
+- postman 
+
+```json 
+{
+    "appointmentId": "d37c4dda-be78-446a-b4d8-dbdad9f05bac",
+    "rating": 4.8,
+    "comment": "The Doctor is Bad"
+}
+```
+
+- showing doctor reviews
+
+- doctor.service.ts 
+
+```ts 
+const getAllFromDB = async (filters: any, options: IOptions) => {
+    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+    const { searchTerm, specialties, ...filterData } = filters;
+
+    const andConditions: Prisma.DoctorWhereInput[] = [];
 
     if (searchTerm) {
         andConditions.push({
-            OR: userSearchableFields.map(field => ({
+            OR: doctorSearchableFields.map((field) => ({
                 [field]: {
                     contains: searchTerm,
                     mode: "insensitive"
@@ -627,46 +219,827 @@ const getAllFromDB = async (params: any, options: IOptions) => {
         })
     }
 
-    if (Object.keys(filterData).length > 0) {
+    // "", "medicine"
+    if (specialties && specialties.length > 0) {
         andConditions.push({
-            AND: Object.keys(filterData).map(key => ({
-                [key]: {
-                    equals: (filterData as any)[key]
+            doctorSpecialties: {
+                some: {
+                    specialities: {
+                        title: {
+                            contains: specialties,
+                            mode: "insensitive"
+                        }
+                    }
                 }
-            }))
+            }
         })
     }
 
-    const whereConditions: Prisma.UserWhereInput = andConditions.length > 0 ? {
-        AND: andConditions
-    } : {}
+    if (Object.keys(filterData).length > 0) {
+        const filterConditions = Object.keys(filterData).map((key) => ({
+            [key]: {
+                equals: (filterData as any)[key]
+            }
+        }))
 
-    const result = await prisma.user.findMany({
+        andConditions.push(...filterConditions)
+    }
+
+    const whereConditions: Prisma.DoctorWhereInput = andConditions.length > 0 ? { AND: andConditions } : {};
+
+    const result = await prisma.doctor.findMany({
+        where: whereConditions,
         skip,
         take: limit,
-
-        where: whereConditions,
         orderBy: {
             [sortBy]: sortOrder
+        },
+        include: {
+            doctorSpecialties: {
+                include: {
+                    specialities: true
+                }
+            },
+            reviews: {
+                select: {
+                    rating: true
+                }
+            }
         }
     });
 
-    const total = await prisma.user.count({
+    const total = await prisma.doctor.count({
         where: whereConditions
-    });
+    })
+
     return {
         meta: {
+            total,
             page,
-            limit,
-            total
+            limit
         },
         data: result
-    };
+    }
 }
 
+const getByIdFromDB = async (id: string): Promise<Doctor | null> => {
+    const result = await prisma.doctor.findUnique({
+        where: {
+            id,
+            isDeleted: false,
+        },
+        include: {
+            doctorSpecialties: {
+                include: {
+                    specialities: true,
+                },
+            },
+            doctorSchedules: {
+                include: {
+                    schedule: true
+                }
+            },
+            reviews: true
+        },
+    });
+    return result;
+};
+
+```
+## 63-4 Creating or Updating Patient Health Data – Part 1, 63-5 Creating or Updating Patient Health Data – Part 2
+```prisma
+model PatientHealthData {
+    id                  String        @id @default(uuid())
+    patientId           String        @unique
+    patient             Patient       @relation(fields: [patientId], references: [id])
+    gender              Gender
+    dateOfBirth         String
+    bloodGroup          BloodGroup
+    hasAllergies        Boolean?      @default(false)
+    hasDiabetes         Boolean?      @default(false)
+    height              String
+    weight              String
+    smokingStatus       Boolean?      @default(false)
+    dietaryPreferences  String?
+    pregnancyStatus     Boolean?      @default(false)
+    mentalHealthHistory String?
+    immunizationStatus  String?
+    hasPastSurgeries    Boolean?      @default(false)
+    recentAnxiety       Boolean?      @default(false)
+    recentDepression    Boolean?      @default(false)
+    maritalStatus       MaritalStatus @default(UNMARRIED)
+    createdAt           DateTime      @default(now())
+    updatedAt           DateTime      @updatedAt
+
+    @@map("patient_health_datas")
+}
+
+model MedicalReport {
+    id         String   @id @default(uuid())
+    patientId  String
+    patient    Patient  @relation(fields: [patientId], references: [id])
+    reportName String
+    reportLink String
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    @@map("madical_reports")
+}
+
+```
+
+- if we are planning to do something like if we have field that will create data if not exist and if exists that will update we will use `upsert`
+
+- patient.route.ts 
+```ts
+import express from 'express';
+import { PatientController } from './patient.controller';
+import auth from '../../middlewares/auth';
+import { UserRole } from '@prisma/client';
+
+const router = express.Router();
+
+router.patch(
+    '/',
+    auth(UserRole.PATIENT),
+    PatientController.updateIntoDB
+);
 
 
-export const UserService = {
-    getAllFromDB
+
+export const PatientRoutes = router;
+```
+
+- patient.controller.ts 
+
+```ts 
+import { Request, Response } from 'express';
+import httpStatus from 'http-status';
+import catchAsync from '../../shared/catchAsync';
+import { patientFilterableFields } from './patient.constant';
+import pick from '../../helper/pick';
+import { PatientService } from './patient.service';
+import sendResponse from '../../shared/sendResponse';
+import { IJWTPayload } from '../../types/common';
+
+const updateIntoDB = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const result = await PatientService.updateIntoDB(user as IJWTPayload, req.body);
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: 'Patient updated successfully',
+        data: result,
+    });
+});
+
+export const PatientController = {
+    updateIntoDB
+};
+```
+- patient.service.ts 
+
+```ts 
+import { Patient, Prisma, UserStatus } from '@prisma/client';
+import { IPatientFilterRequest } from './patient.interface';
+import { IOptions, paginationHelper } from '../../helper/paginationHelper';
+import { patientSearchableFields } from './patient.constant';
+import { prisma } from '../../shared/prisma';
+import { IJWTPayload } from '../../types/common';
+
+
+
+// PatientHealthData, MedicalReport, patient
+
+const updateIntoDB = async (user: IJWTPayload, payload: any) => {
+    const { medicalReport, patientHealthData, ...patientData } = payload;
+
+    const patientInfo = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user.email,
+            isDeleted: false
+        }
+    });
+
+    return await prisma.$transaction(async (tnx) => {
+        await tnx.patient.update({
+            where: {
+                id: patientInfo.id
+            },
+            data: patientData
+        })
+
+        if (patientHealthData) {
+            await tnx.patientHealthData.upsert({
+                where: {
+                    patientId: patientInfo.id
+                },
+                update: patientHealthData,
+                create: {
+                    ...patientHealthData,
+                    patientId: patientInfo.id
+                }
+            })
+        }
+
+        if (medicalReport) {
+            await tnx.medicalReport.create({
+                data: {
+                    ...medicalReport,
+                    patientId: patientInfo.id
+                }
+            })
+        }
+
+        const result = await tnx.patient.findUnique({
+            where: {
+                id: patientInfo.id
+            },
+            include: {
+                patientHealthData: true,
+                medicalReports: true
+            }
+        })
+        return result;
+    })
+
+
+
+}
+
+export const PatientService = {
+    updateIntoDB
+};
+```
+
+- postman 
+
+```json 
+{
+    "name" : "Sazid", // update
+
+    "medicalReport" :{ // create
+        "reportName" : "Past Surgery 2",
+        "reportLink" : "reportLink2"
+    },
+    "patientHealthData" :{ // create or update
+        "gender" : "MALE",
+        "dateOfBirth" : "20-01-1976",
+        "bloodGroup" : "B_POSITIVE",
+        "height" : "5 feet 8 inch",
+        "weight" : "76kg"
+    }
+}
+```
+## 63-6 Overview of Change Password, Refresh Token, Forgot & Reset Password Features, 63-7 Retrieving Information from Cookies
+- emailSender.ts
+
+```ts 
+import nodemailer from 'nodemailer'
+import config from '../../../config';
+
+const emailSender = async (
+    email: string,
+    html: string
+) => {
+    const transporter = nodemailer.createTransport({
+        host: config.emailSender.host,
+        port: 587,
+        secure: false, // Use `true` for port 465, `false` for all other ports
+        auth: {
+            user: config.emailSender.email,
+            pass: config.emailSender.app_pass, // app password
+        },
+        tls: {
+            rejectUnauthorized: false
+        }
+    });
+
+    const info = await transporter.sendMail({
+        from: '"PH Health Care" <shafayat.ph@gmail.com>', // sender address
+        to: email, // list of receivers
+        subject: "Reset Password Link", // Subject line
+        //text: "Hello world?", // plain text body
+        html, // html body
+    });
+
+}
+
+export default emailSender;
+```
+
+- auth.routes.ts 
+
+```ts 
+import express, { NextFunction, Request, Response } from 'express'
+import { AuthController } from './auth.controller'
+import { UserRole } from '@prisma/client'
+import auth from '../../middlewares/auth'
+
+const router = express.Router()
+
+router.get(
+    "/me",
+    AuthController.getMe
+)
+
+router.post(
+    "/login",
+    AuthController.login
+)
+
+router.post(
+    '/refresh-token',
+    AuthController.refreshToken
+)
+
+router.post(
+    '/change-password',
+    auth(
+        UserRole.ADMIN,
+        UserRole.DOCTOR,
+        UserRole.PATIENT
+    ),
+    AuthController.changePassword
+);
+
+router.post(
+    '/forgot-password',
+    AuthController.forgotPassword
+);
+
+router.post(
+    '/reset-password',
+    AuthController.resetPassword
+)
+
+export const AuthRoutes = router 
+```
+
+- auth.controller.ts 
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import sendResponse from "../../shared/sendResponse";
+import { AuthServices } from "./auth.service";
+import httpStatus from "http-status";
+
+const login = catchAsync(async (req: Request, res: Response) => {
+    const result = await AuthServices.login(req.body);
+    const { accessToken, refreshToken, needPasswordChange } = result;
+
+    res.cookie("accessToken", accessToken, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60
+    })
+    res.cookie("refreshToken", refreshToken, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24 * 90
+    })
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "User loggedin successfully!",
+        data: {
+            needPasswordChange
+        }
+    })
+})
+
+const refreshToken = catchAsync(async (req: Request, res: Response) => {
+    const { refreshToken } = req.cookies;
+
+    const result = await AuthServices.refreshToken(refreshToken);
+    res.cookie("accessToken", result.accessToken, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60,
+    });
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Access token genereated successfully!",
+        data: {
+            message: "Access token genereated successfully!",
+        },
+    });
+});
+
+const changePassword = catchAsync(
+    async (req: Request & { user?: any }, res: Response) => {
+        const user = req.user;
+
+        const result = await AuthServices.changePassword(user, req.body);
+
+        sendResponse(res, {
+            statusCode: httpStatus.OK,
+            success: true,
+            message: "Password Changed successfully",
+            data: result,
+        });
+    }
+);
+
+const forgotPassword = catchAsync(async (req: Request, res: Response) => {
+    await AuthServices.forgotPassword(req.body);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Check your email!",
+        data: null,
+    });
+});
+
+const resetPassword = catchAsync(async (req: Request, res: Response) => {
+    const token = req.headers.authorization || "";
+
+    await AuthServices.resetPassword(token, req.body);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Password Reset!",
+        data: null,
+    });
+});
+
+const getMe = catchAsync(async (req: Request, res: Response) => {
+    const userSession = req.cookies;
+    const result = await AuthServices.getMe(userSession);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "User retrive successfully!",
+        data: result,
+    });
+});
+
+export const AuthController = {
+    login,
+    refreshToken,
+    changePassword,
+    resetPassword,
+    forgotPassword,
+    getMe
+}
+```
+- auth.service.ts 
+
+```ts 
+import { UserStatus } from "@prisma/client"
+import { prisma } from "../../shared/prisma"
+import bcrypt from "bcryptjs";
+import { Secret } from 'jsonwebtoken'
+import { jwtHelper } from "../../helper/jwtHelper";
+import ApiError from "../../errors/ApiError";
+import httpStatus from "http-status"
+import config from "../../../config";
+import emailSender from "./emailSender";
+
+
+const login = async (payload: { email: string, password: string }) => {
+    const user = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: payload.email,
+            status: UserStatus.ACTIVE
+        }
+    })
+
+    const isCorrectPassword = await bcrypt.compare(payload.password, user.password);
+    if (!isCorrectPassword) {
+        throw new ApiError(httpStatus.BAD_REQUEST, "Password is incorrect!")
+    }
+
+    const accessToken = jwtHelper.generateToken({ email: user.email, role: user.role }, config.jwt.jwt_secret as Secret, "1h");
+
+    const refreshToken = jwtHelper.generateToken({ email: user.email, role: user.role }, config.jwt.refresh_token_secret as Secret, "90d");
+
+    return {
+        accessToken,
+        refreshToken,
+        needPasswordChange: user.needPasswordChange
+    }
+}
+
+const refreshToken = async (token: string) => {
+    let decodedData;
+    try {
+        decodedData = jwtHelper.verifyToken(token, config.jwt.refresh_token_secret as Secret);
+    }
+    catch (err) {
+        throw new Error("You are not authorized!")
+    }
+
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: decodedData.email,
+            status: UserStatus.ACTIVE
+        }
+    });
+
+    const accessToken = jwtHelper.generateToken({
+        email: userData.email,
+        role: userData.role
+    },
+        config.jwt.jwt_secret as Secret,
+        config.jwt.expires_in as string
+    );
+
+    return {
+        accessToken,
+        needPasswordChange: userData.needPasswordChange
+    };
+
+};
+
+const changePassword = async (user: any, payload: any) => {
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: user.email,
+            status: UserStatus.ACTIVE
+        }
+    });
+
+    const isCorrectPassword: boolean = await bcrypt.compare(payload.oldPassword, userData.password);
+
+    if (!isCorrectPassword) {
+        throw new Error("Password incorrect!")
+    }
+
+    const hashedPassword: string = await bcrypt.hash(payload.newPassword, Number(config.salt_round));
+
+    await prisma.user.update({
+        where: {
+            email: userData.email
+        },
+        data: {
+            password: hashedPassword,
+            needPasswordChange: false
+        }
+    })
+
+    return {
+        message: "Password changed successfully!"
+    }
+};
+
+const forgotPassword = async (payload: { email: string }) => {
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: payload.email,
+            status: UserStatus.ACTIVE
+        }
+    });
+
+    const resetPassToken = jwtHelper.generateToken(
+        { email: userData.email, role: userData.role },
+        config.jwt.reset_pass_secret as Secret,
+        config.jwt.reset_pass_token_expires_in as string
+    )
+
+    const resetPassLink = config.reset_pass_link + `?userId=${userData.id}&token=${resetPassToken}`
+
+    await emailSender(
+        userData.email,
+        `
+        <div>
+            <p>Dear User,</p>
+            <p>Your password reset link 
+                <a href=${resetPassLink}>
+                    <button>
+                        Reset Password
+                    </button>
+                </a>
+            </p>
+
+        </div>
+        `
+    )
+};
+
+const resetPassword = async (token: string, payload: { id: string, password: string }) => {
+
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            id: payload.id,
+            status: UserStatus.ACTIVE
+        }
+    });
+
+    const isValidToken = jwtHelper.verifyToken(token, config.jwt.reset_pass_secret as Secret)
+
+    if (!isValidToken) {
+        throw new ApiError(httpStatus.FORBIDDEN, "Forbidden!")
+    }
+
+    // hash password
+    const password = await bcrypt.hash(payload.password, Number(config.salt_round));
+
+    // update into database
+    await prisma.user.update({
+        where: {
+            id: payload.id
+        },
+        data: {
+            password
+        }
+    })
+};
+
+const getMe = async (session: any) => {
+    const accessToken = session.accessToken;
+    const decodedData = jwtHelper.verifyToken(accessToken, config.jwt.jwt_secret as Secret);
+
+    const userData = await prisma.user.findUniqueOrThrow({
+        where: {
+            email: decodedData.email,
+            status: UserStatus.ACTIVE
+        }
+    })
+
+    const { id, email, role, needPasswordChange, status } = userData;
+
+    return {
+        id,
+        email,
+        role,
+        needPasswordChange,
+        status
+    }
+
+}
+
+export const AuthServices = {
+    login,
+    changePassword,
+    forgotPassword,
+    refreshToken,
+    resetPassword,
+    getMe
+}
+```
+## 63-8 Fetching Prescriptions as a Patient
+
+- prescription.routes.ts
+
+```ts 
+import { UserRole } from '@prisma/client';
+import express from 'express';
+import auth from '../../middlewares/auth';
+import { PrescriptionController } from './prescription.controller';
+const router = express.Router();
+
+router.get(
+    '/my-prescription',
+    auth(UserRole.PATIENT),
+    PrescriptionController.patientPrescription
+)
+
+router.post(
+    "/",
+    auth(UserRole.DOCTOR),
+    PrescriptionController.createPrescription
+);
+
+export const PrescriptionRoutes = router;
+```
+- prescription.controller.ts
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { IJWTPayload } from "../../types/common";
+import { PrescriptionService } from "./prescription.service";
+import sendResponse from "../../shared/sendResponse";
+import pick from "../../helper/pick";
+import httpStatus from 'http-status'
+
+const createPrescription = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const result = await PrescriptionService.createPrescription(user as IJWTPayload, req.body);
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "prescription created successfully!",
+        data: result
+    })
+})
+
+const patientPrescription = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder'])
+    const result = await PrescriptionService.patientPrescription(user as IJWTPayload, options);
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: 'Prescription fetched successfully',
+        meta: result.meta,
+        data: result.data
+    });
+});
+
+export const PrescriptionController = {
+    createPrescription,
+    patientPrescription
+}
+```
+- prescription.service.ts
+
+```ts 
+import { AppointmentStatus, PaymentStatus, Prescription, UserRole } from "@prisma/client";
+import { IJWTPayload } from "../../types/common";
+import { prisma } from "../../shared/prisma";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status'
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+
+const createPrescription = async (user: IJWTPayload, payload: Partial<Prescription>) => {
+    const appointmentData = await prisma.appointment.findUniqueOrThrow({
+        where: {
+            id: payload.appointmentId,
+            status: AppointmentStatus.COMPLETED,
+            paymentStatus: PaymentStatus.PAID
+        },
+        include: {
+            doctor: true
+        }
+    })
+
+    if (user.role === UserRole.DOCTOR) {
+        if (!(user.email === appointmentData.doctor.email))
+            throw new ApiError(httpStatus.BAD_REQUEST, "This is not your appointment")
+    }
+
+    const result = await prisma.prescription.create({
+        data: {
+            appointmentId: appointmentData.id,
+            doctorId: appointmentData.doctorId,
+            patientId: appointmentData.patientId,
+            instructions: payload.instructions as string,
+            followUpDate: payload.followUpDate || null
+        },
+        include: {
+            patient: true
+        }
+    });
+
+    return result;
+}
+
+const patientPrescription = async (user: IJWTPayload, options: IOptions) => {
+    const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+
+    const result = await prisma.prescription.findMany({
+        where: {
+            patient: {
+                email: user.email
+            }
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        },
+        include: {
+            doctor: true,
+            patient: true,
+            appointment: true
+        }
+    })
+
+    const total = await prisma.prescription.count({
+        where: {
+            patient: {
+                email: user.email
+            }
+        }
+    })
+
+    return {
+        meta: {
+            total,
+            page,
+            limit
+        },
+        data: result
+    }
+
+};
+
+
+export const PrescriptionService = {
+    createPrescription,
+    patientPrescription
 }
 ```
