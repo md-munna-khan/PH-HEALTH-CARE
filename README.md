@@ -8,7 +8,7 @@ Diagrams: https://drive.google.com/file/d/1PWtMG-PF0HcC_UUTYVXNZ4BjY2Jm09zE/view
 
 ## 63-1 Designing Review, Patient Health Data, and Medical Report Schemas & Creating Review
 
-![alt text](image-21.png)
+![alt text](image-22.png)
 
 - review.routes.ts 
 
