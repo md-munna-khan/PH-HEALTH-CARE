@@ -1,13 +1,14 @@
-# Reviews-Patient-Health-data-account-management
+# REVIEWS-PATIENT-HEALTH-DATA-AND-MEDICAL-REPORT-SCHEMA-AND-CREATING-REVIEW
+
 GitHub Repo:  https://github.com/Apollo-Level2-Web-Dev/ph-health-care-server/tree/part-8
-
-
 
 ERD: https://drive.google.com/file/d/1x7Bi_oiIAUjNGINIz3rUYaXUUBvAduEs/view?usp=sharing
 
+Diagrams: https://drive.google.com/file/d/1PWtMG-PF0HcC_UUTYVXNZ4BjY2Jm09zE/view?usp=drive_link
+
 ## 63-1 Designing Review, Patient Health Data, and Medical Report Schemas & Creating Review
 
-![alt text](image-21.png)
+![alt text](image-1.png)
 
 - review.routes.ts 
 
@@ -185,6 +186,7 @@ export const ReviewService = {
     insertIntoDB
 } 
 ```
+
 ## 63-3 Implementing Review Creation & Including Reviews in Data Retrieval
 
 - postman 
@@ -306,6 +308,7 @@ const getByIdFromDB = async (id: string): Promise<Doctor | null> => {
 };
 
 ```
+
 ## 63-4 Creating or Updating Patient Health Data – Part 1, 63-5 Creating or Updating Patient Health Data – Part 2
 ```prisma
 model PatientHealthData {
@@ -491,6 +494,7 @@ export const PatientService = {
     }
 }
 ```
+
 ## 63-6 Overview of Change Password, Refresh Token, Forgot & Reset Password Features, 63-7 Retrieving Information from Cookies
 - emailSender.ts
 
@@ -888,6 +892,7 @@ export const AuthServices = {
     getMe
 }
 ```
+
 ## 63-8 Fetching Prescriptions as a Patient
 
 - prescription.routes.ts
@@ -1043,6 +1048,7 @@ export const PrescriptionService = {
     patientPrescription
 }
 ```
+
 ## 63-9 Retrieving Profile Data
 
 - user.routes.ts 
