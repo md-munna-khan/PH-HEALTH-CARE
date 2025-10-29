@@ -888,3 +888,158 @@ export const AuthServices = {
     getMe
 }
 ```
+## 63-8 Fetching Prescriptions as a Patient
+
+- prescription.routes.ts
+
+```ts 
+import { UserRole } from '@prisma/client';
+import express from 'express';
+import auth from '../../middlewares/auth';
+import { PrescriptionController } from './prescription.controller';
+const router = express.Router();
+
+router.get(
+    '/my-prescription',
+    auth(UserRole.PATIENT),
+    PrescriptionController.patientPrescription
+)
+
+router.post(
+    "/",
+    auth(UserRole.DOCTOR),
+    PrescriptionController.createPrescription
+);
+
+export const PrescriptionRoutes = router;
+```
+- prescription.controller.ts
+
+```ts 
+import { Request, Response } from "express";
+import catchAsync from "../../shared/catchAsync";
+import { IJWTPayload } from "../../types/common";
+import { PrescriptionService } from "./prescription.service";
+import sendResponse from "../../shared/sendResponse";
+import pick from "../../helper/pick";
+import httpStatus from 'http-status'
+
+const createPrescription = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const result = await PrescriptionService.createPrescription(user as IJWTPayload, req.body);
+
+    sendResponse(res, {
+        statusCode: 201,
+        success: true,
+        message: "prescription created successfully!",
+        data: result
+    })
+})
+
+const patientPrescription = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
+    const user = req.user;
+    const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder'])
+    const result = await PrescriptionService.patientPrescription(user as IJWTPayload, options);
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: 'Prescription fetched successfully',
+        meta: result.meta,
+        data: result.data
+    });
+});
+
+export const PrescriptionController = {
+    createPrescription,
+    patientPrescription
+}
+```
+- prescription.service.ts
+
+```ts 
+import { AppointmentStatus, PaymentStatus, Prescription, UserRole } from "@prisma/client";
+import { IJWTPayload } from "../../types/common";
+import { prisma } from "../../shared/prisma";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status'
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+
+const createPrescription = async (user: IJWTPayload, payload: Partial<Prescription>) => {
+    const appointmentData = await prisma.appointment.findUniqueOrThrow({
+        where: {
+            id: payload.appointmentId,
+            status: AppointmentStatus.COMPLETED,
+            paymentStatus: PaymentStatus.PAID
+        },
+        include: {
+            doctor: true
+        }
+    })
+
+    if (user.role === UserRole.DOCTOR) {
+        if (!(user.email === appointmentData.doctor.email))
+            throw new ApiError(httpStatus.BAD_REQUEST, "This is not your appointment")
+    }
+
+    const result = await prisma.prescription.create({
+        data: {
+            appointmentId: appointmentData.id,
+            doctorId: appointmentData.doctorId,
+            patientId: appointmentData.patientId,
+            instructions: payload.instructions as string,
+            followUpDate: payload.followUpDate || null
+        },
+        include: {
+            patient: true
+        }
+    });
+
+    return result;
+}
+
+const patientPrescription = async (user: IJWTPayload, options: IOptions) => {
+    const { limit, page, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options);
+
+    const result = await prisma.prescription.findMany({
+        where: {
+            patient: {
+                email: user.email
+            }
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            [sortBy]: sortOrder
+        },
+        include: {
+            doctor: true,
+            patient: true,
+            appointment: true
+        }
+    })
+
+    const total = await prisma.prescription.count({
+        where: {
+            patient: {
+                email: user.email
+            }
+        }
+    })
+
+    return {
+        meta: {
+            total,
+            page,
+            limit
+        },
+        data: result
+    }
+
+};
+
+
+export const PrescriptionService = {
+    createPrescription,
+    patientPrescription
+}
+```
