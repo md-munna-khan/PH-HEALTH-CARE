@@ -17,3 +17,77 @@ https://github.com/Apollo-Level2-Web-Dev/rate-limiting
 npm i node-cron
 ```
 - install the node cron
+
+## 64-2 Implementing Task Scheduling with Node Cron
+
+- appointment.service.ts 
+
+```ts 
+import { stripe } from "../../helper/stripe";
+import { prisma } from '../../shared/prisma';
+import { IJWTPayload } from "../../types/common";
+import { v4 as uuidv4 } from 'uuid';
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { AppointmentStatus, PaymentStatus, Prisma, UserRole } from "@prisma/client";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status'
+
+
+const cancelUnpaidAppointments = async () => {
+    const thirtyMinuteAgo = new Date(Date.now() - 30 * 60 * 1000)
+    //  time prior 30 minute 
+
+    // find the appointments that are unpaid and created thirty minute before
+    const unPaidAppointments = await prisma.appointment.findMany({
+        where: {
+            createdAt: {
+                lte: thirtyMinuteAgo
+            },
+            paymentStatus: PaymentStatus.UNPAID
+        }
+    })
+
+    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
+
+    await prisma.$transaction(async (tnx) => {
+        // delete the payment
+        await tnx.payment.deleteMany({
+            where: {
+                appointmentId: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // delete appointment 
+
+        await tnx.appointment.deleteMany({
+            where: {
+                id: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // update the isBooked Status 
+        for (const unPaidAppointment of unPaidAppointments) {
+            await tnx.doctorSchedules.update({
+                where: {
+                    doctorId_scheduleId: {
+                        doctorId: unPaidAppointment.doctorId,
+                        scheduleId: unPaidAppointment.scheduleId
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+        }
+
+    })
+}
+
+export const AppointmentService = {
+    cancelUnpaidAppointments
+};
+```
