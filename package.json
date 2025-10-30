@@ -23,6 +23,7 @@
     "i": "^0.3.7",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
     "npm": "^11.6.2",
     "openai": "^6.6.0",
