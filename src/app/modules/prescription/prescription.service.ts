@@ -10,7 +10,7 @@ const createPrescription = async (user: IJWTPayload, payload: Partial<Prescripti
         where: {
             id: payload.appointmentId,
             status: AppointmentStatus.COMPLETED,
-            // paymentStatus: PaymentStatus.PAID
+            paymentStatus: PaymentStatus.PAID
         },
         include: {
             doctor: true

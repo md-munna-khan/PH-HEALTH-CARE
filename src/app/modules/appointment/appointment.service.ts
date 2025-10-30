@@ -1,4 +1,4 @@
-import { AppointmentStatus, Prisma, UserRole } from "@prisma/client";
+import { AppointmentStatus, PaymentStatus, Prisma, UserRole } from "@prisma/client";
 import { stripe } from "../../helper/stripe";
 import { prisma } from "../../shared/prisma";
 import { IJWTPayload } from "../../types/common";
@@ -179,9 +179,62 @@ return  await prisma.appointment.update({
 })
 
 }
+const cancelUnpaidAppointments = async () => {
+    const thirtyMinuteAgo = new Date(Date.now() - 30 * 60 * 1000)
+    //  time prior 30 minute 
 
-export const AppointmentService = {
+    // find the appointments that are unpaid and created thirty minute before
+    const unPaidAppointments = await prisma.appointment.findMany({
+        where: {
+            createdAt: {
+                lte: thirtyMinuteAgo
+            },
+            paymentStatus: PaymentStatus.UNPAID
+        }
+    })
+
+    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
+   
+    await prisma.$transaction(async (tnx) => {
+        // delete the payment
+        await tnx.payment.deleteMany({
+            where: {
+                appointmentId: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // delete appointment 
+
+        await tnx.appointment.deleteMany({
+            where: {
+                id: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // update the isBooked Status 
+        for (const unPaidAppointment of unPaidAppointments) {
+            await tnx.doctorSchedules.update({
+                where: {
+                    doctorId_scheduleId: {
+                        doctorId: unPaidAppointment.doctorId,
+                        scheduleId: unPaidAppointment.scheduleId
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+        }
+
+    })
+}
+export const AppointmentService = { 
     createAppointment,
     getMyAppointment,
-    updateAppointmentStatus
+    updateAppointmentStatus,
+   cancelUnpaidAppointments
 };
