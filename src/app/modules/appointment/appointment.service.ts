@@ -179,52 +179,62 @@ return  await prisma.appointment.update({
 })
 
 }
-const cancelUnpaidAppointment= async ()=>{
-    const thirtyMinAgo = new Date(Date.now()- 30 * 60 * 1000);
+const cancelUnpaidAppointments = async () => {
+    const thirtyMinuteAgo = new Date(Date.now() - 30 * 60 * 1000)
+    //  time prior 30 minute 
+
+    // find the appointments that are unpaid and created thirty minute before
     const unPaidAppointments = await prisma.appointment.findMany({
-        where:{
-            createdAt:{
-                lte:thirtyMinAgo
+        where: {
+            createdAt: {
+                lte: thirtyMinuteAgo
             },
-            paymentStatus:PaymentStatus.UNPAID
+            paymentStatus: PaymentStatus.UNPAID
         }
     })
 
-    const appointmentIdsToCancel =unPaidAppointments.map(appointment => appointment.id);
-     await prisma.$transaction(async(tnx)=>{
+    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
+   
+    await prisma.$transaction(async (tnx) => {
+        // delete the payment
         await tnx.payment.deleteMany({
-            where:{
-                appointmentId:{
-                    in:appointmentIdsToCancel
+            where: {
+                appointmentId: {
+                    in: appointmentIdsToCancel
                 }
             }
         })
-    await tnx.appointment.deleteMany({
-        where:{
-            id:{
-                in:appointmentIdsToCancel
-            }
-        }
-    })
-for (const unPaidAppointment of unPaidAppointments ){
-    await tnx.doctorSchedules.update({
-        where:{
-            doctorId_scheduleId:{
-                doctorId:unPaidAppointment.doctorId,
-                scheduleId:unPaidAppointment.scheduleId
-            }
-        },
-        data:{
-            isBooked:false
-        }
-    })
-}
-     })
-}
 
+        // delete appointment 
+
+        await tnx.appointment.deleteMany({
+            where: {
+                id: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // update the isBooked Status 
+        for (const unPaidAppointment of unPaidAppointments) {
+            await tnx.doctorSchedules.update({
+                where: {
+                    doctorId_scheduleId: {
+                        doctorId: unPaidAppointment.doctorId,
+                        scheduleId: unPaidAppointment.scheduleId
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+        }
+
+    })
+}
 export const AppointmentService = { 
     createAppointment,
     getMyAppointment,
     updateAppointmentStatus,
-    cancelUnpaidAppointment
+   cancelUnpaidAppointments
 };
