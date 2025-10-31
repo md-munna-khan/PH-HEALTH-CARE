@@ -441,3 +441,101 @@ export const MetaService = {
     fetchDashboardMetaData
 }
 ```
+
+
+## 64-7 Bonus-1- Understanding the Concept of Fixed Window Rate Limiting, 64-8 Bonus-2- System Design & Practical Implementation of Fixed Window Rate Limiting
+
+- fixed widows rate limiting
+![alt text](image-24.png)
+
+- rate limiting means how many request we can accept within a time. 
+- It like we are telling from one Ip we will allow 5 request in one minute.
+- The purpose of rate limiting is when too many requests the server might crash or server will shut down. 
+
+#### Fixed Window Rate Limiting 
+
+!![alt text](image-25.png)
+
+
+
+- in a separate file of another project 
+- server.ts 
+```ts 
+const http = require('http');
+
+// =======================
+// Rate Limiter Settings
+// =======================
+const rateLimitWindow = 60 * 1000; // Time window: 1 minute
+const maxRequests = 5;             // Maximum allowed requests per IP within the time window
+const ipRequests = {};             // Object to track requests per IP: { ip: { count, startTime } }
+
+/**
+ * -----------------------------
+ * Simple Fixed-Window Rate Limiter
+ * -----------------------------
+ * Logic:
+ * - Each IP address gets a fixed 1-minute window.
+ * - If the IP makes more than `maxRequests` within that window → block it.
+ * - When the window expires, the counter resets.
+ */
+const rateLimitMiddleware = (req, res) => {
+    const ip = req.socket.remoteAddress; // Get client IP address
+    const currentTime = Date.now();      // Current timestamp
+
+    // If IP is seen for the first time, initialize its tracking info
+    if (!ipRequests[ip]) {
+        ipRequests[ip] = {
+            count: 1,
+            startTime: currentTime,
+        };
+    }
+    else {
+        // If still within the same time window
+        if (currentTime - ipRequests[ip].startTime < rateLimitWindow) {
+            ipRequests[ip].count += 1; // Increase the request count
+        }
+        else {
+            // If window has expired → reset counter and start a new window
+            ipRequests[ip] = {
+                count: 1,
+                startTime: currentTime,
+            };
+        }
+    }
+
+    // =======================
+    // Check Rate Limit Status
+    // =======================
+    if (ipRequests[ip].count > maxRequests) {
+        // Too many requests from this IP → block it
+        res.writeHead(429, { 'Content-Type': 'text/plain' }); // 429 = Too Many Requests
+        res.end('Too Many Requests. Please try again later.');
+        return false; // Stop request handling
+    }
+
+    // Request allowed → continue
+    return true;
+};
+
+// =======================
+// HTTP Server Setup
+// =======================
+const server = http.createServer((req, res) => {
+    // Apply rate limiting before handling the request
+    if (!rateLimitMiddleware(req, res)) return;
+
+    // Handle successful requests
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end(`Passed \tDate: ${new Date().toISOString()}\n`);
+});
+
+// =======================
+// Start the Server
+// =======================
+server.listen(3000, () => {
+    console.log('🚀 Server running at http://localhost:3000');
+});
+
+```
