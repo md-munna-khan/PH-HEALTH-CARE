@@ -1,441 +1,131 @@
-# USER-RETRIEVAL-QUERY-OPTIMIZATION-AND-AUTHENTICATION-MIDDLEWARE
-## 58-1 Fetch All Users with Pagination
+# TASK-SCHEDULING-DASHBOARD-ANALYSIS-BONUS
 
-- user.routes.ts
+https://github.com/Apollo-Level2-Web-Dev/ph-health-care-server/tree/part-9
 
-```ts
-import express, { NextFunction, Request, Response } from "express";
-import { UserController } from "./user.controller";
+https://github.com/Apollo-Level2-Web-Dev/rate-limiting
 
-const router = express.Router();
 
-router.get("/", UserController.getAllFromDB);
+## 64-1 Designing Strategy to Cancel Unpaid Appointments
 
-export const UserRoutes = router;
-```
+- The strategy will be like when we book an appointment we will get 30 minutes of time to complete the payment. If not paid withing the 30 minute the payment and the appointment will be deleted and the isBooked status will be false again. 
 
-- user.controller.ts
+![alt text](image-23.png)
 
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  const { page, limit } = req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
+- basically we will create a cron job  using `node cron npm` that will call in every minute and check if unpaid and if 30 minute exceeded then will do the operation for the unpaid appointments. 
 
 ```
-{{URL}}/user?limit=11&page=1
+npm i node-cron
 ```
-
-```ts
-import bcrypt from "bcryptjs";
-
-const getAllFromDB = async ({
-  page,
-  limit,
-}: {
-  page: number;
-  limit: number;
-}) => {
-  const skip = (page - 1) * limit;
-  const result = await prisma.user.findMany({
-    skip,
-    take: limit,
-  });
-  return result;
-};
-
-export const UserService = {
-  getAllFromDB,
-};
-```
-
-## 58-2 Fetch All Users with Searching and Sorting
-
-```
-{{URL}}/user?sortBy=createdAt&sortOrder=desc
-```
-
-- user.controller.ts
-
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  const { page, limit, searchTerm, sortBy, sortOrder } = req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-    searchTerm,
-    sortBy,
-    sortOrder,
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
-
-```ts
-import bcrypt from "bcryptjs";
-import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-
-const getAllFromDB = async ({
-  page,
-  limit,
-  searchTerm,
-  sortBy,
-  sortOrder,
-}: {
-  page: number;
-  limit: number;
-  searchTerm?: any;
-  sortBy: any;
-  sortOrder: any;
-}) => {
-  const pageNumber = page || 1;
-  const limitNumber = limit || 10;
-
-  const skip = (pageNumber - 1) * limitNumber;
-  const result = await prisma.user.findMany({
-    skip,
-    take: limitNumber,
-    where: {
-      email: {
-        contains: searchTerm,
-        mode: "insensitive",
-      },
-    },
-    orderBy:
-      sortBy && sortOrder
-        ? {
-            [sortBy]: sortOrder,
-          }
-        : {
-            createdAt: "asc",
-          },
-  });
-  return result;
-};
-
-export const UserService = {
-  getAllFromDB,
-};
-```
-
-## 58-3 Fetch All Users with Filtering, 58-4 Implement Pick Function for Query Parameters
-
-- helpers -> pick.ts
-
-```ts
-const pick = <T extends Record<string, unknown>, K extends keyof T>(
-  obj: T,
-  keys: K[]
-): Partial<T> => {
-  console.log({ obj, keys });
-
-  const finalObject: Partial<T> = {};
-
-  for (const key of keys) {
-    if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObject[key] = obj[key];
-    }
-  }
-
-  // Object.hasOwnProperty.call(obj, key) checks safely if the obj has its own property key. Using call() avoids issues if obj has a custom hasOwnProperty method or if it was shadowed.Also ensures obj is not null or undefined.
-
-  console.log(finalObject);
-
-  return finalObject;
-};
-
-export default pick;
-```
-
-```ts
-<T extends Record<string, unknown>>
-
-T is a generic type parameter representing the type of the input object.
-
-The constraint extends Record<string, unknown> means:
-
-T must be an object whose keys are strings, and whose values can be anything (unknown).
-
-K extends keyof T
-
-K is another generic type parameter.
-
-keyof T means all the keys of the object T.
-
-So K must be one (or more) of the keys in T.
-
-Parameters:
-
-obj: T → the object you want to extract properties from.
-
-keys: K[] → an array of property names (keys) you want to "pick" from obj.
-
-Return type:
-
-```
-
-- user.controller.ts
-
-```ts
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-  // random -> fields , searchTerm --> searching, filtering
-
-  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-
-  const { page, limit, searchTerm, sortBy, sortOrder, role, status } =
-    req.query;
-  const result = await UserService.getAllFromDB({
-    page: Number(page),
-    limit: Number(limit),
-    searchTerm,
-    sortBy,
-    sortOrder,
-    role,
-    status,
-  });
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    data: result,
-  });
-});
-```
-
-
-## 58-5 Create Pagination Helper Function, 58-6 Apply Prisma Where Conditions for User Data Retrieval, 58-7 Overview of Metadata, Searching, Sorting, Filtering & Pagination
-
-- helper -> pick.ts
-
-```ts
-const pick = <T extends Record<string, unknown>, K extends keyof T>(
-  obj: T,
-  keys: K[]
-): Partial<T> => {
-  console.log({ obj, keys });
-
-  const finalObject: Partial<T> = {};
-
-  for (const key of keys) {
-    if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObject[key] = obj[key];
-    }
-  }
-
-  console.log(finalObject);
-
-  return finalObject;
-};
-
-export default pick;
-```
-
-- helper -> paginationHelper.ts
-
-```ts
-type IOptions = {
-  page?: string | number;
-  limit?: string | number;
-  sortBy?: string;
-  sortOrder?: string;
-};
-
-type IOptionsResult = {
-  page: number;
-  limit: number;
-  skip: number;
-  sortBy: string;
-  sortOrder: string;
-};
-const calculatePagination = (options: IOptions): IOptionsResult => {
-  const page: number = Number(options.page) || 1;
-  const limit: number = Number(options.limit) || 10;
-  const skip: number = Number(page - 1) * limit;
-
-  const sortBy: string = options.sortBy || "createdAt";
-  const sortOrder: string = options.sortOrder || "desc";
-
-  return {
-    page,
-    limit,
-    skip,
-    sortBy,
-    sortOrder,
-  };
-};
-
-export const paginationHelper = {
-  calculatePagination,
-};
-```
-
-- user.constant.ts
-
-```ts
-export const userSearchableFields = ["email"];
-export const userFilterableField = ["status", "role", "email", "searchTerm"];
-```
-
-- user.controller.ts
-
-```ts
-import { Request, Response } from "express";
-import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
-import sendResponse from "../../shared/sendResponse";
-import pick from "../../helper/pick";
-import { userFilterableField } from "./user.contant";
-
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-  // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-  // random -> fields , searchTerm --> searching, filtering
-
-  // const filters = pick(req.query, ["status", "role", "email", "searchTerm"])
-
-  // const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"])
-
-  const filters = pick(req.query, userFilterableField);
-
-  const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]);
-
-  // const { page, limit, searchTerm, sortBy, sortOrder, role, status } = req.query
-  const result = await UserService.getAllFromDB(filters, options);
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "User Retrieved Successfully",
-    meta: result.meta,
-    data: result.data,
-  });
-});
-
-export const UserController = {
-  getAllFromDB,
-};
-```
-
-- user.service.ts
-
-```ts
-import bcrypt from "bcryptjs";
-import { createPatientInput } from "./user.interface";
-import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-import { fileUploader } from "../../helper/fileUploader";
-import { Admin, Doctor, Prisma, UserRole } from "@prisma/client";
-import { paginationHelper } from "../../helper/paginationHelper";
-import { userSearchableFields } from "./user.contant";
-
-const getAllFromDB = async (params: any, options: IOptions) => {
-    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
-    const { searchTerm, ...filterData } = params;
-
-    const andConditions: Prisma.UserWhereInput[] = [];
-
-    if (searchTerm) {
-        andConditions.push({
-            OR: userSearchableFields.map(field => ({
-                [field]: {
-                    contains: searchTerm,
-                    mode: "insensitive"
-                }
-            }))
-        })
-    }
-
-    if (Object.keys(filterData).length > 0) {
-        andConditions.push({
-            AND: Object.keys(filterData).map(key => ({
-                [key]: {
-                    equals: (filterData as any)[key]
-                }
-            }))
-        })
-    }
-
-    const whereConditions: Prisma.UserWhereInput = andConditions.length > 0 ? {
-        AND: andConditions
-    } : {}
-
-    const result = await prisma.user.findMany({
-        skip,
-        take: limit,
-
-        where: whereConditions,
-        orderBy: {
-            [sortBy]: sortOrder
+- install the node cron
+
+## 64-2 Implementing Task Scheduling with Node Cron
+
+- appointment.service.ts 
+
+```ts 
+import { stripe } from "../../helper/stripe";
+import { prisma } from '../../shared/prisma';
+import { IJWTPayload } from "../../types/common";
+import { v4 as uuidv4 } from 'uuid';
+import { IOptions, paginationHelper } from "../../helper/paginationHelper";
+import { AppointmentStatus, PaymentStatus, Prisma, UserRole } from "@prisma/client";
+import ApiError from "../../errors/ApiError";
+import httpStatus from 'http-status'
+
+
+const cancelUnpaidAppointments = async () => {
+    const thirtyMinuteAgo = new Date(Date.now() - 30 * 60 * 1000)
+    //  time prior 30 minute 
+
+    // find the appointments that are unpaid and created thirty minute before
+    const unPaidAppointments = await prisma.appointment.findMany({
+        where: {
+            createdAt: {
+                lte: thirtyMinuteAgo
+            },
+            paymentStatus: PaymentStatus.UNPAID
         }
-    });
+    })
 
-    const total = await prisma.user.count({
-        where: whereConditions
-    });
-    return {
-        meta: {
-            page,
-            limit,
-            total
-        },
-        data: result
-    };
+    const appointmentIdsToCancel = unPaidAppointments.map(appointment => appointment.id);
+
+    await prisma.$transaction(async (tnx) => {
+        // delete the payment
+        await tnx.payment.deleteMany({
+            where: {
+                appointmentId: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // delete appointment 
+
+        await tnx.appointment.deleteMany({
+            where: {
+                id: {
+                    in: appointmentIdsToCancel
+                }
+            }
+        })
+
+        // update the isBooked Status 
+        for (const unPaidAppointment of unPaidAppointments) {
+            await tnx.doctorSchedules.update({
+                where: {
+                    doctorId_scheduleId: {
+                        doctorId: unPaidAppointment.doctorId,
+                        scheduleId: unPaidAppointment.scheduleId
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+        }
+
+    })
 }
 
-export const UserService = {
-  getAllFromDB,
+export const AppointmentService = {
+    cancelUnpaidAppointments
 };
 ```
-## 58-8 Implement Authentication Middleware, 58-9 Debug and Fix Issues in Auth Middleware, 58-10 Final Fixes and Full Module Overview
-- we will verify role from the decoded token and then we will let them see all users 
-- install cookie parser 
+## 64-3 Testing Unpaid Appointment Cancellations
 
-```
-npm i cookie-parser
-```
+- now lets use node cron to call the function in every minutes 
 
-```
-npm i --save-dev @types/cookie-parser
-```
+- as app.ts runs continuously so we have to do cronjob here.
 
-- app.ts use of cookie parser 
+ ```
+# ┌────────────── second (optional)
+ # │ ┌──────────── minute
+ # │ │ ┌────────── hour
+ # │ │ │ ┌──────── day of month
+ # │ │ │ │ ┌────── month
+ # │ │ │ │ │ ┌──── day of week
+ # │ │ │ │ │ │
+ # │ │ │ │ │ │
+ # * * * * * *
+ ```
+
+- app.ts
+
+```ts 
+// added for cronjob - 5 start means it will call in every minute  
+cron.schedule('* * * * *', () => {
+    try {
+        console.log('Node Cron called at', new Date());
+        AppointmentService.cancelUnpaidAppointments()
+
+    } catch (error) {
+        console.log(error)
+    }
+
+});
+// ___________________
+```
+- full app.ts 
 
 ```ts 
 import express, { Application, NextFunction, Request, Response } from 'express';
@@ -443,23 +133,46 @@ import cors from 'cors';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import notFound from './app/middlewares/notFound';
 import config from './config';
-import cookieParser from 'cookie-parser'
-
 import router from './app/routes';
+import cookieParser from 'cookie-parser'
+import { PaymentController } from './app/modules/payment/payment.controller';
+
+import cron from 'node-cron';
+import { AppointmentService } from './app/modules/appointment/appointment.service';
+
 
 const app: Application = express();
+
+app.post(
+    "/webhook",
+    express.raw({ type: "application/json" }),
+    PaymentController.handleStripeWebhookEvent
+);
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: 'http://localhost:3001',
     credentials: true
 }));
 
 //parser
 app.use(express.json());
-app.use(cookieParser())
+app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api/v1", router)
 
+// added for cronjob - 5 start means it will call in every minute  
+cron.schedule('* * * * *', () => {
+    try {
+        console.log('Node Cron called at', new Date());
+        AppointmentService.cancelUnpaidAppointments()
+
+    } catch (error) {
+        console.log(error)
+    }
+
+});
+// ___________________
+
+app.use("/api/v1", router);
 
 app.get('/', (req: Request, res: Response) => {
     res.send({
@@ -470,203 +183,451 @@ app.get('/', (req: Request, res: Response) => {
     })
 });
 
-
 app.use(globalErrorHandler);
 
 app.use(notFound);
 
 export default app;
 ```
-- middlewares -> auth.ts 
+## 64-4 Fetching Dashboard Metadata – Part 1, 64-5 Fetching Dashboard Metadata – Part 2, 64-6 Fetching Dashboard Metadata – Part 3
+
+- meta.routes.ts 
 
 ```ts 
-import { NextFunction, Request, Response } from "express"
-import { jwtHelper } from "../helper/jwtHelper";
+import express from 'express';
+import { MetaController } from './meta.controller';
+import auth from '../../middlewares/auth';
+import { UserRole } from '@prisma/client';
 
-const auth = (...roles: string[]) => {
-    return async (req: Request & { user?: any }, res: Response, next: NextFunction) => {
-        try {
-            const token = req.cookies.accessToken;
+const router = express.Router();
 
-            if (!token) {
-                throw new Error("You are Not Authorized!")
-            }
+router.get(
+    '/',
+    auth(UserRole.ADMIN, UserRole.DOCTOR, UserRole.PATIENT),
+    MetaController.fetchDashboardMetaData
+)
 
-            const verifyUser = jwtHelper.verifyToken(token, "abcd")
 
-            req.user = verifyUser
-
-            if (roles.length && !roles.includes(verifyUser.role)) {
-                throw new Error("You are Not Authorized!")
-            }
-
-            next()
-
-        } catch (error) {
-            next(error)
-        }
-    }
-}
-
-export default auth
+export const MetaRoutes = router;
 ```
-- helper -> jwtHelper.ts 
 
-```ts 
-import jwt, { JwtPayload, Secret, SignOptions } from "jsonwebtoken";
-const generateToken = (payload: any, secret: Secret, expiresIn: string) => {
-    //  generate access token 
-    const token = jwt.sign(payload, secret, {
-        algorithm: "HS256",
-        expiresIn
-    } as SignOptions
-    )
-
-    return token
-}
-
-const verifyToken = (token: string, secret: Secret) => {
-    return jwt.verify(token, secret) as JwtPayload
-}
-
-export const jwtHelper = {
-    generateToken,
-    verifyToken
-}
-```
-- user.route.ts 
-
-```ts 
-import express, { NextFunction, Request, Response } from 'express'
-import { UserController } from './user.controller'
-import { fileUploader } from '../../helper/fileUploader'
-import { UserValidation } from './user.validation'
-import { UserRole } from '@prisma/client'
-import auth from '../../middlewares/auth'
-
-
-const router = express.Router()
-
-router.get("/", auth(UserRole.ADMIN), UserController.getAllFromDB)
-
-
-
-export const UserRoutes = router 
-```
-- user.controller.ts 
+- meta.controller.ts 
 
 ```ts 
 import { Request, Response } from "express";
+import { MetaService } from "./meta.service";
+import httpStatus from "http-status";
 import catchAsync from "../../shared/catchAsync";
-import { UserService } from "./user.service";
+import { IJWTPayload } from "../../types/common";
 import sendResponse from "../../shared/sendResponse";
-import pick from "../../helper/pick";
-import { userFilterableFields } from "./user.constant";
 
 
+const fetchDashboardMetaData = catchAsync(async (req: Request & { user?: IJWTPayload }, res: Response) => {
 
-const getAllFromDB = catchAsync(async (req: Request, res: Response) => {
-    // common  -> page page, limit, sortBy, sortOrder, --> pagination, sorting
-    // random -> fields , searchTerm --> searching, filtering 
+    const user = req.user;
+    const result = await MetaService.fetchDashboardMetaData(user as IJWTPayload);
 
-    // const filters = pick(req.query, ["status", "role", "email", "searchTerm"])
-
-    // const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"])
-
-    const filters = pick(req.query, userFilterableFields) // searching , filtering
-    const options = pick(req.query, ["page", "limit", "sortBy", "sortOrder"]) // pagination and sorting
-
-
-
-
-    // const { page, limit, searchTerm, sortBy, sortOrder, role, status } = req.query
-    const result = await UserService.getAllFromDB(filters, options)
     sendResponse(res, {
-        statusCode: 200,
+        statusCode: httpStatus.OK,
         success: true,
-        message: "User Retrieved Successfully",
-        meta: result.meta,
-        data: result.data
+        message: "Meta data retrival successfully!",
+        data: result
     })
-})
+});
 
-
-
-export const UserController = {
-    getAllFromDB
+export const MetaController = {
+    fetchDashboardMetaData
 }
 ```
-- user.service.ts 
+
+- meta.service.ts 
 
 ```ts 
-import bcrypt from "bcryptjs";
-import { createPatientInput } from "./user.interface";
+import { PaymentStatus, UserRole } from "@prisma/client";
+import { IJWTPayload } from "../../types/common";
+import httpStatus from 'http-status'
+import ApiError from "../../errors/ApiError";
 import { prisma } from "../../shared/prisma";
-import { Request } from "express";
-import { fileUploader } from "../../helper/fileUploader";
-import { Admin, Doctor, Prisma, UserRole } from "@prisma/client";
-import { IOptions, paginationHelper } from "../../helper/paginationHelper";
-import { userSearchableFields } from "./user.constant";
 
 
-
-const getAllFromDB = async (params: any, options: IOptions) => {
-    const { page, limit, skip, sortBy, sortOrder } = paginationHelper.calculatePagination(options)
-    const { searchTerm, ...filterData } = params;
-
-    const andConditions: Prisma.UserWhereInput[] = [];
-
-    if (searchTerm) {
-        andConditions.push({
-            OR: userSearchableFields.map(field => ({
-                [field]: {
-                    contains: searchTerm,
-                    mode: "insensitive"
-                }
-            }))
-        })
+const fetchDashboardMetaData = async (user: IJWTPayload) => {
+    let metadata;
+    switch (user.role) {
+        case UserRole.ADMIN:
+            metadata = await getAdminMetaData();
+            break;
+        case UserRole.DOCTOR:
+            metadata = await getDoctorMetaData(user);
+            break;
+        case UserRole.PATIENT:
+            metadata = await getPatientMetaData(user);
+            break;
+        default:
+            throw new ApiError(httpStatus.BAD_REQUEST, "Invalid user role!")
     }
 
-    if (Object.keys(filterData).length > 0) {
-        andConditions.push({
-            AND: Object.keys(filterData).map(key => ({
-                [key]: {
-                    equals: (filterData as any)[key]
-                }
-            }))
-        })
-    }
+    return metadata;
+};
 
-    const whereConditions: Prisma.UserWhereInput = andConditions.length > 0 ? {
-        AND: andConditions
-    } : {}
 
-    const result = await prisma.user.findMany({
-        skip,
-        take: limit,
-
-        where: whereConditions,
-        orderBy: {
-            [sortBy]: sortOrder
+const getDoctorMetaData = async (user: IJWTPayload) => {
+    const doctorData = await prisma.doctor.findUniqueOrThrow({
+        where: {
+            email: user?.email
         }
     });
 
-    const total = await prisma.user.count({
-        where: whereConditions
+    const appointmentCount = await prisma.appointment.count({
+        where: {
+            doctorId: doctorData.id
+        }
     });
-    return {
-        meta: {
-            page,
-            limit,
-            total
+
+    const patientCount = await prisma.appointment.groupBy({
+        by: ['patientId'],
+        _count: {
+            id: true
+        }
+    });
+
+    const reviewCount = await prisma.review.count({
+        where: {
+            doctorId: doctorData.id
+        }
+    });
+
+    const totalRevenue = await prisma.payment.aggregate({
+        _sum: {
+            amount: true
         },
-        data: result
-    };
+        where: {
+            appointment: {
+                doctorId: doctorData.id
+            },
+            status: PaymentStatus.PAID
+        }
+    });
+
+    const appointmentStatusDistribution = await prisma.appointment.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        where: {
+            doctorId: doctorData.id
+        }
+    });
+
+    const formattedAppointmentStatusDistribution = appointmentStatusDistribution.map(({ status, _count }) => ({
+        status,
+        count: Number(_count.id)
+    }))
+
+    return {
+        appointmentCount,
+        reviewCount,
+        patientCount: patientCount.length,
+        totalRevenue,
+        formattedAppointmentStatusDistribution
+    }
+}
+
+const getPatientMetaData = async (user: IJWTPayload) => {
+    const patientData = await prisma.patient.findUniqueOrThrow({
+        where: {
+            email: user?.email
+        }
+    });
+
+    const appointmentCount = await prisma.appointment.count({
+        where: {
+            patientId: patientData.id
+        }
+    });
+
+    const prescriptionCount = await prisma.prescription.count({
+        where: {
+            patientId: patientData.id
+        }
+    });
+
+    const reviewCount = await prisma.review.count({
+        where: {
+            patientId: patientData.id
+        }
+    });
+
+    const appointmentStatusDistribution = await prisma.appointment.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        where: {
+            patientId: patientData.id
+        }
+    });
+
+    const formattedAppointmentStatusDistribution = appointmentStatusDistribution.map(({ status, _count }) => ({
+        status,
+        count: Number(_count.id)
+    }))
+
+    return {
+        appointmentCount,
+        prescriptionCount,
+        reviewCount,
+        formattedAppointmentStatusDistribution
+    }
 }
 
 
+const getAdminMetaData = async () => {
+    const patientCount = await prisma.patient.count();
+    const doctorCount = await prisma.doctor.count();
+    const adminCount = await prisma.admin.count();
+    const appointmentCount = await prisma.appointment.count()
+    const paymentCount = await prisma.payment.count()
 
-export const UserService = {
-    getAllFromDB
+    const totalRevenue = await prisma.payment.aggregate({
+        _sum: {
+            amount: true
+        },
+        where: {
+            status: PaymentStatus.PAID
+        }
+    })
+
+    const barChartData = await getBarChartData();
+    const pieChartData = await getPieChartData();
+
+    return {
+        patientCount,
+        doctorCount,
+        adminCount,
+        appointmentCount,
+        paymentCount,
+        totalRevenue,
+        barChartData,
+        pieChartData
+    }
+
+}
+
+
+const getBarChartData = async () => {
+    const appointmentCountPerMonth = await prisma.$queryRaw`
+        SELECT DATE_TRUNC('month', "createdAt") AS month,
+        CAST(COUNT(*) AS INTEGER) AS count
+        FROM "appointments"
+        GROUP BY month
+        ORDER BY month ASC
+    `
+
+    return appointmentCountPerMonth
+}
+
+const getPieChartData = async () => {
+    const appointmentStatusDistribution = await prisma.appointment.groupBy({
+        by: ['status'],
+        _count: { id: true }
+    });
+
+    const formatedAppointmentStatusDistribution = appointmentStatusDistribution.map(({ status, _count }) => ({
+        status,
+        count: Number(_count.id)
+    }));
+
+    return formatedAppointmentStatusDistribution;
+}
+
+
+export const MetaService = {
+    fetchDashboardMetaData
 }
 ```
+
+
+## 64-7 Bonus-1- Understanding the Concept of Fixed Window Rate Limiting, 64-8 Bonus-2- System Design & Practical Implementation of Fixed Window Rate Limiting
+
+- fixed widows rate limiting
+![alt text](image-24.png)
+
+- rate limiting means how many request we can accept within a time. 
+- It like we are telling from one Ip we will allow 5 request in one minute.
+- The purpose of rate limiting is when too many requests the server might crash or server will shut down. 
+
+#### Fixed Window Rate Limiting 
+
+!![alt text](image-25.png)
+
+
+
+- in a separate file of another project 
+- server.ts 
+```ts 
+const http = require('http');
+
+// =======================
+// Rate Limiter Settings
+// =======================
+const rateLimitWindow = 60 * 1000; // Time window: 1 minute
+const maxRequests = 5;             // Maximum allowed requests per IP within the time window
+const ipRequests = {};             // Object to track requests per IP: { ip: { count, startTime } }
+
+/**
+ * -----------------------------
+ * Simple Fixed-Window Rate Limiter
+ * -----------------------------
+ * Logic:
+ * - Each IP address gets a fixed 1-minute window.
+ * - If the IP makes more than `maxRequests` within that window → block it.
+ * - When the window expires, the counter resets.
+ */
+const rateLimitMiddleware = (req, res) => {
+    const ip = req.socket.remoteAddress; // Get client IP address
+    const currentTime = Date.now();      // Current timestamp
+
+    // If IP is seen for the first time, initialize its tracking info
+    if (!ipRequests[ip]) {
+        ipRequests[ip] = {
+            count: 1,
+            startTime: currentTime,
+        };
+    }
+    else {
+        // If still within the same time window
+        if (currentTime - ipRequests[ip].startTime < rateLimitWindow) {
+            ipRequests[ip].count += 1; // Increase the request count
+        }
+        else {
+            // If window has expired → reset counter and start a new window
+            ipRequests[ip] = {
+                count: 1,
+                startTime: currentTime,
+            };
+        }
+    }
+
+    // =======================
+    // Check Rate Limit Status
+    // =======================
+    if (ipRequests[ip].count > maxRequests) {
+        // Too many requests from this IP → block it
+        res.writeHead(429, { 'Content-Type': 'text/plain' }); // 429 = Too Many Requests
+        res.end('Too Many Requests. Please try again later.');
+        return false; // Stop request handling
+    }
+
+    // Request allowed → continue
+    return true;
+};
+
+// =======================
+// HTTP Server Setup
+// =======================
+const server = http.createServer((req, res) => {
+    // Apply rate limiting before handling the request
+    if (!rateLimitMiddleware(req, res)) return;
+
+    // Handle successful requests
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end(`Passed \tDate: ${new Date().toISOString()}\n`);
+});
+
+// =======================
+// Start the Server
+// =======================
+server.listen(3000, () => {
+    console.log('🚀 Server running at http://localhost:3000');
+});
+
+```
+
+## 64-9 Bonus-3- Understanding the Concept of Sliding Window Rate Limiting, 64-10 Bonus-4- System Design & Practical Implementation of Sliding Window Rate Limiting
+
+- there is a problem with the fixed windowed rate limiting like when in boundary line there might come some many request then system performance will drop and server might shut down 
+
+![alt text](image-7.png)
+
+- this problem is called `boundary Burst Problem`
+
+- Thi problem is resolved by `sliding rate limiting`
+
+![alt text](image-8.png)
+
+![alt text](image-9.png)
+
+- in another file 
+- server.ts 
+```ts 
+const http = require('http');
+
+// Configuration
+const rateLimitWindowMs = 60 * 1000; // 1 minute window
+const maxRequestsPerWindow = 5;
+const ipRequests = {}; // Store timestamps per IP: { 'ip': [timestamp1, timestamp2, ...] }
+
+/**
+ * Sliding Window Rate Limiter
+ * ----------------------------------
+ * The sliding window algorithm continuously tracks requests within a moving time window.
+ * For each request:
+ *   1. Remove timestamps older than the current window.
+ *   2. Count how many requests remain (still within the window).
+ *   3. If the count >= limit → block the request.
+ *   4. Otherwise, allow it and record the timestamp.
+ */
+const rateLimitMiddleware = (req, res) => {
+    const ip = req.socket.remoteAddress; // Identify user by IP
+    const currentTime = Date.now();
+
+    // Initialize request history for this IP if it doesn't exist
+    if (!ipRequests[ip]) {
+        ipRequests[ip] = [];
+    }
+
+    // Remove timestamps that fall outside the sliding window
+    ipRequests[ip] = ipRequests[ip].filter(timestamp => {
+        return currentTime - timestamp < rateLimitWindowMs;
+    });
+
+    // Calculate the number of requests within the window
+    const requestCount = ipRequests[ip].length; // 0 base count
+
+    // If request count exceeds or equals the allowed limit, reject the request
+    if (requestCount >= maxRequestsPerWindow) {
+        const retryAfter = Math.ceil(
+            (rateLimitWindowMs - (currentTime - ipRequests[ip][0])) / 1000
+        ); // Calculate seconds until user can retry
+
+        res.statusCode = 429; // Too Many Requests
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Retry-After', retryAfter); // Standard header for rate limits
+        res.end(`Too many requests. Try again in ${retryAfter} seconds.`);
+        return false;
+    }
+
+    // Otherwise, allow the request and record the timestamp
+    ipRequests[ip].push(currentTime);
+    return true;
+};
+
+// Create HTTP server
+const server = http.createServer((req, res) => {
+    if (!rateLimitMiddleware(req, res)) return; // Apply rate limiting before handling request
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('Hello, world!');
+});
+
+// Start the server
+server.listen(3000, () => {
+    console.log('Server running at http://localhost:3000');
+});
+
+```
+- boundary burst problem it means end of the rate limit time and start time coming the request 
+![alt text](image-26.png)
+
+- solution use sliding window rate limiting
+![alt text](image-27.png)
+
+![alt text](image-28.png)
